@@ -206,6 +206,7 @@ assert.equal(strictTask.schedule.cron, '0 9 * * *')
 assert.equal(strictTask.schedule.daily, undefined)
 console.log('✓ strict tool-call placeholders are ignored')
 
+
 // --- validation
 await assert.rejects(run1.tools.get('cron_add').execute({ id: 'bad', prompt: 'x', every: 30, daily: '10:00' }, { agent: run1.mockAgent }), /exactly one/)
 await assert.rejects(run1.tools.get('cron_add').execute({ id: 'dyn', prompt: 'x', every: 60 }, { agent: run1.mockAgent }), /already exists/)
