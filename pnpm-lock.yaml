@@ -21,6 +21,9 @@ importers:
       '@deepseek-ai/cordis-plugin-loader':
         specifier: 1.0.2
         version: 1.0.2(@deepseek-ai/cordis@4.0.1)
+      '@deepseek-ai/dsh-agent':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(c1537a8836b04097f168b024f1e38d85)
       '@deepseek-ai/dsh-agent-default-model':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(cffd0b3811dd3fb50ded7f3d23c3fd53)
@@ -40,6 +43,9 @@ importers:
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-client-runtime@0.1.1-rc.2(601e9129357dc48738583e18d75d19b2))(@deepseek-ai/dsh-client-ui-theme@0.1.1-rc.2(a6c39110759121c55549be9a5dac7bf7))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
       '@deepseek-ai/dsh-home-paths':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
+      '@deepseek-ai/dsh-host-webserver':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))
       '@deepseek-ai/dsh-invariants':
@@ -66,29 +72,32 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(119bc70f73f8eddebfaa6b47561adeb3)
+      '@deepseek-ai/dsh-web':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-llm@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-attachment@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-timeout@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))))
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
       '@types/react-dom':
-        specifier: ~18.3.1
+        specifier: 18.3.7
         version: 18.3.7(@types/react@18.3.31)
       jsdom:
-        specifier: ^30.0.1
+        specifier: 30.0.1
         version: 30.0.1
       react:
-        specifier: ^18.2.0
+        specifier: 18.3.1
         version: 18.3.1
       react-dom:
-        specifier: ^18.2.0
+        specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
       tsdown:
-        specifier: ^0.22.2
+        specifier: 0.22.14
         version: 0.22.14(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.6.0
+        specifier: 5.9.3
         version: 5.9.3
       unrun:
-        specifier: ^0.3.1
+        specifier: 0.3.1
         version: 0.3.1
 
 packages:
@@ -106,11 +115,11 @@ packages:
     hasBin: true
 
   '@csstools/color-helpers@6.1.1':
-    resolution: {integrity: sha1-GJDymkNHSGtUBI0kxquPvvA57mE=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@csstools/color-helpers/-/color-helpers-6.1.1.tgz}
+    resolution: {integrity: sha1-GJDymkNHSGtUBI0kxquPvvA57mE=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@csstools/color-helpers/-/color-helpers-6.1.1.tgz}
     engines: {node: '>=20.19.0'}
 
   '@csstools/css-calc@3.3.0':
-    resolution: {integrity: sha1-M8xL26uO3xtuOrjB66hJxBoyTxo=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@csstools/css-calc/-/css-calc-3.3.0.tgz}
+    resolution: {integrity: sha1-M8xL26uO3xtuOrjB66hJxBoyTxo=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@csstools/css-calc/-/css-calc-3.3.0.tgz}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       '@csstools/css-parser-algorithms': ^4.0.0
@@ -148,7 +157,7 @@ packages:
       '@deepseek-ai/cordis-plugin-loader': ^1.0.2
 
   '@deepseek-ai/cordis-plugin-loader@1.0.2':
-    resolution: {integrity: sha1-3bHS61pUPRTVpQb0y5WHV7lW0rE=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/cordis-plugin-loader/-/cordis-plugin-loader-1.0.2.tgz}
+    resolution: {integrity: sha1-3bHS61pUPRTVpQb0y5WHV7lW0rE=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/cordis-plugin-loader/-/cordis-plugin-loader-1.0.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       node-addon-require-builtin: ^0.1.4
@@ -157,7 +166,7 @@ packages:
         optional: true
 
   '@deepseek-ai/cordis@4.0.1':
-    resolution: {integrity: sha1-6BceY7EdJZ7sh6tCss1ti1aUkgM=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/cordis/-/cordis-4.0.1.tgz}
+    resolution: {integrity: sha1-6BceY7EdJZ7sh6tCss1ti1aUkgM=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/cordis/-/cordis-4.0.1.tgz}
     hasBin: true
     peerDependencies:
       '@deepseek-ai/cordis-plugin-include': ^1.0.6
@@ -172,7 +181,7 @@ packages:
     resolution: {integrity: sha1-JfAwxraI3oENj3wGvHyW2bkeLlA=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/cosmokit/-/cosmokit-1.8.2.tgz}
 
   '@deepseek-ai/dsh-agent-default-model@0.1.1-rc.2':
-    resolution: {integrity: sha1-0hnBVcR2ChLNvssys9FKCBMI0f0=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-agent-default-model/-/dsh-agent-default-model-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-0hnBVcR2ChLNvssys9FKCBMI0f0=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-agent-default-model/-/dsh-agent-default-model-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -181,7 +190,7 @@ packages:
       '@deepseek-ai/dsh-settings': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-agent-presets@0.1.1-rc.2':
-    resolution: {integrity: sha1-TVwEQAIvNkEvctq/HoNH9ozP7ng=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-agent-presets/-/dsh-agent-presets-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-TVwEQAIvNkEvctq/HoNH9ozP7ng=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-agent-presets/-/dsh-agent-presets-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/cordis-plugin-include': ^1.0.6
@@ -207,7 +216,7 @@ packages:
       '@deepseek-ai/dsh-typert-protocol': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-api-gateway@0.1.1-rc.2':
-    resolution: {integrity: sha1-5hp0j5hxMW3h0WOqNCp7TpnWKro=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-api-gateway/-/dsh-api-gateway-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-5hp0j5hxMW3h0WOqNCp7TpnWKro=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-api-gateway/-/dsh-api-gateway-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-client-connection': ^0.1.1-rc.2
@@ -215,7 +224,7 @@ packages:
       '@deepseek-ai/dsh-typert-registry': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-api-remotes@0.1.1-rc.2':
-    resolution: {integrity: sha1-27PRedDo3nJUbO7itRCprCDS2R8=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-api-remotes/-/dsh-api-remotes-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-27PRedDo3nJUbO7itRCprCDS2R8=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-api-remotes/-/dsh-api-remotes-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -237,7 +246,7 @@ packages:
       '@deepseek-ai/dsh-typert-registry': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-atomic-write@0.1.1-rc.2':
-    resolution: {integrity: sha1-/7vmMWMOLNLbQ1I8RjI6CQgOsL0=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-atomic-write/-/dsh-atomic-write-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-/7vmMWMOLNLbQ1I8RjI6CQgOsL0=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-atomic-write/-/dsh-atomic-write-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -269,7 +278,7 @@ packages:
       '@deepseek-ai/dsh-tools': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-client-locale@0.1.1-rc.2':
-    resolution: {integrity: sha1-exO+2gjtkiiSKiRqL+zSDVQDFbs=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-locale/-/dsh-client-locale-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-exO+2gjtkiiSKiRqL+zSDVQDFbs=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-locale/-/dsh-client-locale-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-api-remotes': ^0.1.1-rc.2
@@ -280,7 +289,7 @@ packages:
       '@deepseek-ai/dsh-settings': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-client-runtime@0.1.1-rc.2':
-    resolution: {integrity: sha1-xzLVaaCGq8nl6eWiFrSjnyk9RN0=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-runtime/-/dsh-client-runtime-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-xzLVaaCGq8nl6eWiFrSjnyk9RN0=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-runtime/-/dsh-client-runtime-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -300,7 +309,7 @@ packages:
       '@deepseek-ai/dsh-typert-registry': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-client-ui-conversation@0.1.1-rc.2':
-    resolution: {integrity: sha1-Vckt2DjJJgMElxqOYIRnsf6yXyU=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-ui-conversation/-/dsh-client-ui-conversation-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-Vckt2DjJJgMElxqOYIRnsf6yXyU=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-ui-conversation/-/dsh-client-ui-conversation-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -336,7 +345,7 @@ packages:
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-client-ui-layout@0.1.1-rc.2':
-    resolution: {integrity: sha1-6b9Lf9lDyZzmTq63yBTug/Q2R3I=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-ui-layout/-/dsh-client-ui-layout-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-6b9Lf9lDyZzmTq63yBTug/Q2R3I=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-ui-layout/-/dsh-client-ui-layout-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-client-runtime': ^0.1.1-rc.2
@@ -344,7 +353,7 @@ packages:
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-client-ui-settings@0.1.1-rc.2':
-    resolution: {integrity: sha1-FZKGwcc0Naj67NPGW8dN/sNP+aA=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-ui-settings/-/dsh-client-ui-settings-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-FZKGwcc0Naj67NPGW8dN/sNP+aA=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-client-ui-settings/-/dsh-client-ui-settings-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-api-remotes': ^0.1.1-rc.2
@@ -373,7 +382,7 @@ packages:
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-commands@0.1.1-rc.2':
-    resolution: {integrity: sha1-fwsythiI2emx2nYwm+gSSkKMHic=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-commands/-/dsh-commands-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-fwsythiI2emx2nYwm+gSSkKMHic=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-commands/-/dsh-commands-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -386,7 +395,7 @@ packages:
       '@deepseek-ai/dsh-typert-protocol': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-compaction@0.1.1-rc.2':
-    resolution: {integrity: sha1-X8KWvQZvzA4+yI2y7yE6iZ0+F0M=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-compaction/-/dsh-compaction-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-X8KWvQZvzA4+yI2y7yE6iZ0+F0M=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-compaction/-/dsh-compaction-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-brand': ^0.1.1-rc.2
@@ -396,7 +405,7 @@ packages:
       '@deepseek-ai/dsh-session': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-cordis-host-runner@0.1.1-rc.2':
-    resolution: {integrity: sha1-/Rz6EyfcWI/hXYWX79GwB+Q7Irc=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-cordis-host-runner/-/dsh-cordis-host-runner-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-/Rz6EyfcWI/hXYWX79GwB+Q7Irc=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-cordis-host-runner/-/dsh-cordis-host-runner-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -424,7 +433,7 @@ packages:
       '@deepseek-ai/dsh-typert-protocol': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-goal@0.1.1-rc.2':
-    resolution: {integrity: sha1-ChqGcouFlgbxrU6AQtu2jGoS3o4=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-goal/-/dsh-goal-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-ChqGcouFlgbxrU6AQtu2jGoS3o4=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-goal/-/dsh-goal-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -437,13 +446,13 @@ packages:
       '@deepseek-ai/dsh-typert-protocol': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-home-paths@0.1.1-rc.2':
-    resolution: {integrity: sha1-rOfOyx+8moCtCMcZ9IR655WoNXg=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-home-paths/-/dsh-home-paths-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-rOfOyx+8moCtCMcZ9IR655WoNXg=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-home-paths/-/dsh-home-paths-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-host-apiproxy@0.1.1-rc.2':
-    resolution: {integrity: sha1-yGX/cIQnPGa6/ibuVFlOIUWgU9E=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-host-apiproxy/-/dsh-host-apiproxy-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-yGX/cIQnPGa6/ibuVFlOIUWgU9E=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-host-apiproxy/-/dsh-host-apiproxy-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent-presets': ^0.1.1-rc.2
@@ -451,7 +460,7 @@ packages:
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-host-directory-picker@0.1.1-rc.2':
-    resolution: {integrity: sha1-qN0kaELKqX/EkW+9KK9wFE6HTBI=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-host-directory-picker/-/dsh-host-directory-picker-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-qN0kaELKqX/EkW+9KK9wFE6HTBI=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-host-directory-picker/-/dsh-host-directory-picker-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -466,7 +475,7 @@ packages:
       '@deepseek-ai/dsh-typert-protocol': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-host-webserver@0.1.1-rc.2':
-    resolution: {integrity: sha1-4K85/B1opAWaeINf8D+JCM4ge84=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-host-webserver/-/dsh-host-webserver-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-4K85/B1opAWaeINf8D+JCM4ge84=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-host-webserver/-/dsh-host-webserver-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -477,7 +486,7 @@ packages:
       '@deepseek-ai/cordis': ^4.0.1
 
   '@deepseek-ai/dsh-jobs@0.1.1-rc.2':
-    resolution: {integrity: sha1-Hm89tzr1VdtsWXER25f+UhpHZN0=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-jobs/-/dsh-jobs-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-Hm89tzr1VdtsWXER25f+UhpHZN0=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-jobs/-/dsh-jobs-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -486,7 +495,7 @@ packages:
       '@deepseek-ai/dsh-session': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-llm-retry@0.1.1-rc.2':
-    resolution: {integrity: sha1-yx6raJZLj6kYLnczigVe0DaZfkY=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-llm-retry/-/dsh-llm-retry-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-yx6raJZLj6kYLnczigVe0DaZfkY=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-llm-retry/-/dsh-llm-retry-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -497,7 +506,7 @@ packages:
       '@deepseek-ai/dsh-timeout': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-llm@0.1.1-rc.2':
-    resolution: {integrity: sha1-losD9fv+XQ8FTjAUBbwM/0TeyN8=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-llm/-/dsh-llm-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-losD9fv+XQ8FTjAUBbwM/0TeyN8=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-llm/-/dsh-llm-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-attachment': ^0.1.1-rc.2
@@ -506,7 +515,7 @@ packages:
       '@deepseek-ai/dsh-timeout': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-message-feedback@0.1.1-rc.2':
-    resolution: {integrity: sha1-zd6b3TRtEUXaxwUVtF8GxVyTj9I=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-message-feedback/-/dsh-message-feedback-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-zd6b3TRtEUXaxwUVtF8GxVyTj9I=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-message-feedback/-/dsh-message-feedback-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-brand': ^0.1.1-rc.2
@@ -524,7 +533,7 @@ packages:
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-output-retention@0.1.1-rc.2':
-    resolution: {integrity: sha1-wsOz4XFxxlLPfnFVAL17mzGWaqI=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-output-retention/-/dsh-output-retention-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-wsOz4XFxxlLPfnFVAL17mzGWaqI=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-output-retention/-/dsh-output-retention-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -579,13 +588,13 @@ packages:
       '@deepseek-ai/dsh-session': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-scope@0.1.1-rc.2':
-    resolution: {integrity: sha1-l+bKjb7+deAaG2pjR1jIU/GJJOQ=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-scope/-/dsh-scope-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-l+bKjb7+deAaG2pjR1jIU/GJJOQ=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-scope/-/dsh-scope-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-session-persistence@0.1.1-rc.2':
-    resolution: {integrity: sha1-8N2/E1N0zKjx7qRe5vTwW3S7MLE=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-persistence/-/dsh-session-persistence-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-8N2/E1N0zKjx7qRe5vTwW3S7MLE=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-persistence/-/dsh-session-persistence-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-brand': ^0.1.1-rc.2
@@ -594,7 +603,7 @@ packages:
       '@deepseek-ai/dsh-timeout': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-session-projection-cache@0.1.1-rc.2':
-    resolution: {integrity: sha1-Zr+Nfk9Vxl9hJd+dWIixvqOgIlg=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-projection-cache/-/dsh-session-projection-cache-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-Zr+Nfk9Vxl9hJd+dWIixvqOgIlg=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-projection-cache/-/dsh-session-projection-cache-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -604,14 +613,14 @@ packages:
       '@deepseek-ai/dsh-storage-domain': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-session-projection@0.1.1-rc.2':
-    resolution: {integrity: sha1-g0exDxqyOILBKORRNOOvE71dKWg=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-projection/-/dsh-session-projection-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-g0exDxqyOILBKORRNOOvE71dKWg=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-projection/-/dsh-session-projection-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
       '@deepseek-ai/dsh-session': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-session-query@0.1.1-rc.2':
-    resolution: {integrity: sha1-CN4WoCwTBhrjXxR9iJDQoCEcKk4=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-query/-/dsh-session-query-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-CN4WoCwTBhrjXxR9iJDQoCEcKk4=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-query/-/dsh-session-query-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-brand': ^0.1.1-rc.2
@@ -625,7 +634,7 @@ packages:
         optional: true
 
   '@deepseek-ai/dsh-session-reference@0.1.1-rc.2':
-    resolution: {integrity: sha1-Rd7aGtE5gYzlTwdI2m/zhpYbhxs=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-reference/-/dsh-session-reference-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-Rd7aGtE5gYzlTwdI2m/zhpYbhxs=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-reference/-/dsh-session-reference-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -647,7 +656,7 @@ packages:
       '@deepseek-ai/dsh-session-projection': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-session-title@0.1.1-rc.2':
-    resolution: {integrity: sha1-F8mKLKnrwvsZ2ukChnEZIgLDYEk=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-title/-/dsh-session-title-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-F8mKLKnrwvsZ2ukChnEZIgLDYEk=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session-title/-/dsh-session-title-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-brand': ^0.1.1-rc.2
@@ -657,7 +666,7 @@ packages:
       '@deepseek-ai/dsh-session-projection': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-session@0.1.1-rc.2':
-    resolution: {integrity: sha1-nJM1q1Wqnj6lQQLMmG5We7+HexA=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session/-/dsh-session-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-nJM1q1Wqnj6lQQLMmG5We7+HexA=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-session/-/dsh-session-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-brand': ^0.1.1-rc.2
@@ -667,7 +676,7 @@ packages:
       '@deepseek-ai/dsh-typert-protocol': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-settings@0.1.1-rc.2':
-    resolution: {integrity: sha1-5kepAcbptNz/nbsAn14SiMapInA=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-settings/-/dsh-settings-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-5kepAcbptNz/nbsAn14SiMapInA=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-settings/-/dsh-settings-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-brand': ^0.1.1-rc.2
@@ -684,7 +693,7 @@ packages:
       '@deepseek-ai/dsh-subprocess': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-skill@0.1.1-rc.2':
-    resolution: {integrity: sha1-9/6UqXgJdIPxMhR4nNy4zOeMlmk=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-skill/-/dsh-skill-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-9/6UqXgJdIPxMhR4nNy4zOeMlmk=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-skill/-/dsh-skill-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -692,7 +701,7 @@ packages:
       '@deepseek-ai/dsh-scope': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-storage-domain@0.1.1-rc.2':
-    resolution: {integrity: sha1-bKkaR3jJc+z+OSWfjIB3y6JPQBo=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-storage-domain/-/dsh-storage-domain-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-bKkaR3jJc+z+OSWfjIB3y6JPQBo=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-storage-domain/-/dsh-storage-domain-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -705,7 +714,7 @@ packages:
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-subagent@0.1.1-rc.2':
-    resolution: {integrity: sha1-66a74NPUyR+6Iii5JAwAiBcZqbw=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-subagent/-/dsh-subagent-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-66a74NPUyR+6Iii5JAwAiBcZqbw=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-subagent/-/dsh-subagent-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -756,7 +765,7 @@ packages:
       '@deepseek-ai/dsh-scope': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-timeout@0.1.1-rc.2':
-    resolution: {integrity: sha1-C4TkpA4k9N1aHJFSKIZR6WqCky8=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-timeout/-/dsh-timeout-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-C4TkpA4k9N1aHJFSKIZR6WqCky8=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-timeout/-/dsh-timeout-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -782,7 +791,7 @@ packages:
       '@deepseek-ai/dsh-tools': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-tools@0.1.1-rc.2':
-    resolution: {integrity: sha1-Hh0JjpHa7vvy00b7iOcBg95zQEk=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-tools/-/dsh-tools-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-Hh0JjpHa7vvy00b7iOcBg95zQEk=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-tools/-/dsh-tools-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
@@ -801,7 +810,7 @@ packages:
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-typert-registry@0.1.1-rc.2':
-    resolution: {integrity: sha1-ns4jbHZSodY1dlhce2JRLu38O58=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-typert-registry/-/dsh-typert-registry-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-ns4jbHZSodY1dlhce2JRLu38O58=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-typert-registry/-/dsh-typert-registry-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
@@ -819,15 +828,22 @@ packages:
       '@deepseek-ai/dsh-system-prompt': ^0.1.1-rc.2
 
   '@deepseek-ai/dsh-user-questions@0.1.1-rc.2':
-    resolution: {integrity: sha1-akahFtiMkci5vh43S474nPgEzRw=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-user-questions/-/dsh-user-questions-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-akahFtiMkci5vh43S474nPgEzRw=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-user-questions/-/dsh-user-questions-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-agent': ^0.1.1-rc.2
       '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
       '@deepseek-ai/dsh-llm': ^0.1.1-rc.2
 
+  '@deepseek-ai/dsh-web@0.1.1-rc.2':
+    resolution: {integrity: sha1-eHb3/HJhD+J+gfZGj8OLtR76wso=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-web/-/dsh-web-0.1.1-rc.2.tgz}
+    peerDependencies:
+      '@deepseek-ai/cordis': ^4.0.1
+      '@deepseek-ai/dsh-invariants': ^0.1.1-rc.2
+      '@deepseek-ai/dsh-llm': ^0.1.1-rc.2
+
   '@deepseek-ai/dsh-workspace@0.1.1-rc.2':
-    resolution: {integrity: sha1-FuBSQxMRk3Bz3MypfwBDTUzFmE0=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-workspace/-/dsh-workspace-0.1.1-rc.2.tgz}
+    resolution: {integrity: sha1-FuBSQxMRk3Bz3MypfwBDTUzFmE0=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@deepseek-ai/dsh-workspace/-/dsh-workspace-0.1.1-rc.2.tgz}
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-brand': ^0.1.1-rc.2
@@ -850,10 +866,10 @@ packages:
         optional: true
 
   '@oxc-project/types@0.147.0':
-    resolution: {integrity: sha1-US5DGWBT20qZko41sodUmjImJos=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@oxc-project/types/-/types-0.147.0.tgz}
+    resolution: {integrity: sha1-US5DGWBT20qZko41sodUmjImJos=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@oxc-project/types/-/types-0.147.0.tgz}
 
   '@quansync/fs@1.0.0':
-    resolution: {integrity: sha1-FxMbHxwmH8+2OJMnLEiN+Jxz9I8=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@quansync/fs/-/fs-1.0.0.tgz}
+    resolution: {integrity: sha1-FxMbHxwmH8+2OJMnLEiN+Jxz9I8=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@quansync/fs/-/fs-1.0.0.tgz}
 
   '@rolldown/binding-android-arm-eabi@1.2.6':
     resolution: {integrity: sha1-gbwyt5kC/NOHXf/fO+LMuj7415Q=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@rolldown/binding-android-arm-eabi/-/binding-android-arm-eabi-1.2.6.tgz}
@@ -952,13 +968,13 @@ packages:
     os: [win32]
 
   '@rolldown/pluginutils@1.0.1':
-    resolution: {integrity: sha1-4/zuCT+7XOdl4a0Ij/TeKIn2+b4=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@rolldown/pluginutils/-/pluginutils-1.0.1.tgz}
+    resolution: {integrity: sha1-4/zuCT+7XOdl4a0Ij/TeKIn2+b4=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@rolldown/pluginutils/-/pluginutils-1.0.1.tgz}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha1-p5tV26+GBIEvUtFAssmrQbwVC7g=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@standard-schema/spec/-/spec-1.1.0.tgz}
 
   '@types/prop-types@15.7.15':
-    resolution: {integrity: sha1-5uWobWAr6spxzlFj+t9fldcJMcc=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/prop-types/-/prop-types-15.7.15.tgz}
+    resolution: {integrity: sha1-5uWobWAr6spxzlFj+t9fldcJMcc=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/prop-types/-/prop-types-15.7.15.tgz}
 
   '@types/react-dom@18.3.7':
     resolution: {integrity: sha1-uJ3fLNg7T+r8xOLqQa/fuVoNGU8=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/react-dom/-/react-dom-18.3.7.tgz}
@@ -966,7 +982,7 @@ packages:
       '@types/react': ^18.0.0
 
   '@types/react@18.3.31':
-    resolution: {integrity: sha1-teleKP/M6rjZgvM/LrB24XZTwqQ=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/react/-/react-18.3.31.tgz}
+    resolution: {integrity: sha1-teleKP/M6rjZgvM/LrB24XZTwqQ=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/react/-/react-18.3.31.tgz}
 
   '@yuku-codegen/binding-android-arm64@0.8.7':
     resolution: {integrity: sha1-lBtR0agbfJA7SHuehLzj/YkvGc0=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@yuku-codegen/binding-android-arm64/-/binding-android-arm64-0.8.7.tgz}
@@ -1101,7 +1117,7 @@ packages:
     os: [win32]
 
   '@yuku-toolchain/types@0.8.7':
-    resolution: {integrity: sha1-zDTQILnltE2gfES2Lv5zDw4UUmc=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@yuku-toolchain/types/-/types-0.8.7.tgz}
+    resolution: {integrity: sha1-zDTQILnltE2gfES2Lv5zDw4UUmc=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@yuku-toolchain/types/-/types-0.8.7.tgz}
 
   ansis@4.3.1:
     resolution: {integrity: sha1-KBXB70kK2vDWEq46aZ6Qy89wqRc=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/ansis/-/ansis-4.3.1.tgz}
@@ -1114,7 +1130,7 @@ packages:
     resolution: {integrity: sha1-b4vPPId8TZIg3fSbm7aTDIj4d9I=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/bidi-js/-/bidi-js-1.0.3.tgz}
 
   cac@7.0.0:
-    resolution: {integrity: sha1-fdqD2iJo91+ECriaw7zDbBIKeNo=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/cac/-/cac-7.0.0.tgz}
+    resolution: {integrity: sha1-fdqD2iJo91+ECriaw7zDbBIKeNo=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/cac/-/cac-7.0.0.tgz}
     engines: {node: '>=20.19.0'}
 
   clsx@2.1.1:
@@ -1126,20 +1142,20 @@ packages:
     engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0}
 
   csstype@3.2.3:
-    resolution: {integrity: sha1-7EjA8+mT5QZIyG2lWeJhCZXPmJo=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/csstype/-/csstype-3.2.3.tgz}
+    resolution: {integrity: sha1-7EjA8+mT5QZIyG2lWeJhCZXPmJo=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/csstype/-/csstype-3.2.3.tgz}
 
   data-urls@7.0.0:
     resolution: {integrity: sha1-bc6LYyJqHs/dkHzhiozPse7lBtM=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/data-urls/-/data-urls-7.0.0.tgz}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
 
   decimal.js@10.6.0:
-    resolution: {integrity: sha1-5kmkPjq5U6chkv9Zg4ZeUJ837Zo=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/decimal.js/-/decimal.js-10.6.0.tgz}
+    resolution: {integrity: sha1-5kmkPjq5U6chkv9Zg4ZeUJ837Zo=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/decimal.js/-/decimal.js-10.6.0.tgz}
 
   defu@6.1.7:
-    resolution: {integrity: sha1-clQ1Z8jp+X/xPOQCttvgmsWuTSM=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/defu/-/defu-6.1.7.tgz}
+    resolution: {integrity: sha1-clQ1Z8jp+X/xPOQCttvgmsWuTSM=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/defu/-/defu-6.1.7.tgz}
 
   dts-resolver@3.0.0:
-    resolution: {integrity: sha1-W4eHVp88p3J7aYnIhNazYVeHph4=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/dts-resolver/-/dts-resolver-3.0.0.tgz}
+    resolution: {integrity: sha1-W4eHVp88p3J7aYnIhNazYVeHph4=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/dts-resolver/-/dts-resolver-3.0.0.tgz}
     engines: {node: ^22.18.0 || >=24.0.0}
     peerDependencies:
       oxc-resolver: '>=11.0.0'
@@ -1148,7 +1164,7 @@ packages:
         optional: true
 
   empathic@2.0.1:
-    resolution: {integrity: sha1-N7G+3jEJPgSgPSq86V6jI/7o70k=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/empathic/-/empathic-2.0.1.tgz}
+    resolution: {integrity: sha1-N7G+3jEJPgSgPSq86V6jI/7o70k=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/empathic/-/empathic-2.0.1.tgz}
     engines: {node: '>=14'}
 
   entities@8.0.0:
@@ -1156,7 +1172,7 @@ packages:
     engines: {node: '>=20.19.0'}
 
   fdir@6.5.0:
-    resolution: {integrity: sha1-7Sq5Z6MxreYvGNB32uGSaE1Q01A=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/fdir/-/fdir-6.5.0.tgz}
+    resolution: {integrity: sha1-7Sq5Z6MxreYvGNB32uGSaE1Q01A=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/fdir/-/fdir-6.5.0.tgz}
     engines: {node: '>=12.0.0'}
     peerDependencies:
       picomatch: ^3 || ^4
@@ -1165,34 +1181,34 @@ packages:
         optional: true
 
   fflate@0.8.3:
-    resolution: {integrity: sha1-vCfY6zA0PU1RKrsDSAICzmXYJfw=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/fflate/-/fflate-0.8.3.tgz}
+    resolution: {integrity: sha1-vCfY6zA0PU1RKrsDSAICzmXYJfw=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/fflate/-/fflate-0.8.3.tgz}
 
   get-tsconfig@5.0.0-beta.5:
-    resolution: {integrity: sha1-Ewvc1DXrOASGADPy6vb+MQ867PE=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/get-tsconfig/-/get-tsconfig-5.0.0-beta.5.tgz}
+    resolution: {integrity: sha1-Ewvc1DXrOASGADPy6vb+MQ867PE=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/get-tsconfig/-/get-tsconfig-5.0.0-beta.5.tgz}
     engines: {node: '>=20.20.0'}
 
   hookable@6.1.1:
     resolution: {integrity: sha1-gl+Wa0tCbbLmItlNejGnDxlvnS8=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/hookable/-/hookable-6.1.1.tgz}
 
   html-encoding-sniffer@6.0.0:
-    resolution: {integrity: sha1-+Nk5Czs0i1DU9hwW3S71wFmAqII=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/html-encoding-sniffer/-/html-encoding-sniffer-6.0.0.tgz}
+    resolution: {integrity: sha1-+Nk5Czs0i1DU9hwW3S71wFmAqII=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/html-encoding-sniffer/-/html-encoding-sniffer-6.0.0.tgz}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
 
   immer@10.2.0:
     resolution: {integrity: sha1-iKTOBqGvZBctJUtw98sE31HIcbE=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/immer/-/immer-10.2.0.tgz}
 
   import-without-cache@0.4.0:
-    resolution: {integrity: sha1-WxRxekK6CdmynjS0nw4s/xtgRss=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/import-without-cache/-/import-without-cache-0.4.0.tgz}
+    resolution: {integrity: sha1-WxRxekK6CdmynjS0nw4s/xtgRss=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/import-without-cache/-/import-without-cache-0.4.0.tgz}
     engines: {node: ^22.18.0 || >=24.0.0}
 
   is-potential-custom-element-name@1.0.1:
-    resolution: {integrity: sha1-Fx7W8Z46xVQ5Tt94yqBXhKRb67U=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/is-potential-custom-element-name/-/is-potential-custom-element-name-1.0.1.tgz}
+    resolution: {integrity: sha1-Fx7W8Z46xVQ5Tt94yqBXhKRb67U=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/is-potential-custom-element-name/-/is-potential-custom-element-name-1.0.1.tgz}
 
   js-tokens@4.0.0:
-    resolution: {integrity: sha1-GSA/tZmR35jjoocFDUZHzerzJJk=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/js-tokens/-/js-tokens-4.0.0.tgz}
+    resolution: {integrity: sha1-GSA/tZmR35jjoocFDUZHzerzJJk=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/js-tokens/-/js-tokens-4.0.0.tgz}
 
   js-yaml@4.3.2:
-    resolution: {integrity: sha1-jkT7FKJkPFlya7FXh7XxUSyz0/s=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/js-yaml/-/js-yaml-4.3.2.tgz}
+    resolution: {integrity: sha1-jkT7FKJkPFlya7FXh7XxUSyz0/s=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/js-yaml/-/js-yaml-4.3.2.tgz}
     hasBin: true
 
   jsdom@30.0.1:
@@ -1209,18 +1225,18 @@ packages:
     hasBin: true
 
   lru-cache@11.5.2:
-    resolution: {integrity: sha1-AOFmZckMYg+6FKPDaHMql2ST92A=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/lru-cache/-/lru-cache-11.5.2.tgz}
+    resolution: {integrity: sha1-AOFmZckMYg+6FKPDaHMql2ST92A=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/lru-cache/-/lru-cache-11.5.2.tgz}
     engines: {node: 20 || >=22}
 
   mdn-data@2.27.1:
     resolution: {integrity: sha1-43ucUIgLdTZsTUCsY9m7ys22Hw4=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/mdn-data/-/mdn-data-2.27.1.tgz}
 
   obug@2.1.4:
-    resolution: {integrity: sha1-kJDYpUilIlF5FdKqaq6QcZesbPg=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/obug/-/obug-2.1.4.tgz}
+    resolution: {integrity: sha1-kJDYpUilIlF5FdKqaq6QcZesbPg=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/obug/-/obug-2.1.4.tgz}
     engines: {node: '>=12.20.0'}
 
   parse5@8.0.1:
-    resolution: {integrity: sha1-9DvNLNaD7+CEB1Mz6c4Np9Btox4=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/parse5/-/parse5-8.0.1.tgz}
+    resolution: {integrity: sha1-9DvNLNaD7+CEB1Mz6c4Np9Btox4=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/parse5/-/parse5-8.0.1.tgz}
 
   picomatch@4.0.7:
     resolution: {integrity: sha1-YxM2ADTMs2s9xh7L3/eBIfkP4h8=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/picomatch/-/picomatch-4.0.7.tgz}
@@ -1231,7 +1247,7 @@ packages:
     engines: {node: '>=6'}
 
   quansync@1.0.0:
-    resolution: {integrity: sha1-HCmszNVEzWjZenNQxQmeCpvH5e4=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/quansync/-/quansync-1.0.0.tgz}
+    resolution: {integrity: sha1-HCmszNVEzWjZenNQxQmeCpvH5e4=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/quansync/-/quansync-1.0.0.tgz}
 
   react-dom@18.3.1:
     resolution: {integrity: sha1-wiZdeVEbV9R5s90/36UVNklMXLQ=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/react-dom/-/react-dom-18.3.1.tgz}
@@ -1239,7 +1255,7 @@ packages:
       react: ^18.3.1
 
   react@18.3.1:
-    resolution: {integrity: sha1-SauJIAnFOTNiW9FrJTP8dUyrKJE=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/react/-/react-18.3.1.tgz}
+    resolution: {integrity: sha1-SauJIAnFOTNiW9FrJTP8dUyrKJE=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/react/-/react-18.3.1.tgz}
     engines: {node: '>=0.10.0'}
 
   require-from-string@2.0.2:
@@ -1247,7 +1263,7 @@ packages:
     engines: {node: '>=0.10.0'}
 
   resolve-pkg-maps@1.0.0:
-    resolution: {integrity: sha1-YWs9wsVwVrVYjDHN9LPWTbEzcg8=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/resolve-pkg-maps/-/resolve-pkg-maps-1.0.0.tgz}
+    resolution: {integrity: sha1-YWs9wsVwVrVYjDHN9LPWTbEzcg8=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/resolve-pkg-maps/-/resolve-pkg-maps-1.0.0.tgz}
 
   rolldown-plugin-dts@0.27.14:
     resolution: {integrity: sha1-7RUHOMmSB4+nCwit6Ti83IcySl4=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/rolldown-plugin-dts/-/rolldown-plugin-dts-0.27.14.tgz}
@@ -1274,7 +1290,7 @@ packages:
     hasBin: true
 
   saxes@6.0.0:
-    resolution: {integrity: sha1-/ltKR2jfTxSiAbG6amXB89mYjMU=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/saxes/-/saxes-6.0.0.tgz}
+    resolution: {integrity: sha1-/ltKR2jfTxSiAbG6amXB89mYjMU=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/saxes/-/saxes-6.0.0.tgz}
     engines: {node: '>=v12.22.7'}
 
   scheduler@0.23.2:
@@ -1285,25 +1301,25 @@ packages:
     engines: {node: '>=0.10.0'}
 
   symbol-tree@3.2.4:
-    resolution: {integrity: sha1-QwY30ki6d+B4iDlR+5qg7tfGP6I=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/symbol-tree/-/symbol-tree-3.2.4.tgz}
+    resolution: {integrity: sha1-QwY30ki6d+B4iDlR+5qg7tfGP6I=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/symbol-tree/-/symbol-tree-3.2.4.tgz}
 
   tinyexec@1.3.0:
-    resolution: {integrity: sha1-qswdux1Ok+atjdZJROCfmtFHpHQ=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tinyexec/-/tinyexec-1.3.0.tgz}
+    resolution: {integrity: sha1-qswdux1Ok+atjdZJROCfmtFHpHQ=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tinyexec/-/tinyexec-1.3.0.tgz}
     engines: {node: '>=18'}
 
   tinyglobby@0.2.17:
-    resolution: {integrity: sha1-ViqabJ6ys7Ej05cZ+a9btE/NdjE=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tinyglobby/-/tinyglobby-0.2.17.tgz}
+    resolution: {integrity: sha1-ViqabJ6ys7Ej05cZ+a9btE/NdjE=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tinyglobby/-/tinyglobby-0.2.17.tgz}
     engines: {node: '>=12.0.0'}
 
   tldts-core@7.4.11:
-    resolution: {integrity: sha1-oC+6Ka9yy/nmWMs6M1+FfvyUdfc=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tldts-core/-/tldts-core-7.4.11.tgz}
+    resolution: {integrity: sha1-oC+6Ka9yy/nmWMs6M1+FfvyUdfc=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tldts-core/-/tldts-core-7.4.11.tgz}
 
   tldts@7.4.11:
-    resolution: {integrity: sha1-UdWj/utHPlku32cUkaJPsjeJ7tI=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tldts/-/tldts-7.4.11.tgz}
+    resolution: {integrity: sha1-UdWj/utHPlku32cUkaJPsjeJ7tI=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tldts/-/tldts-7.4.11.tgz}
     hasBin: true
 
   tough-cookie@6.0.2:
-    resolution: {integrity: sha1-ex8i/PLa8GxP+dU+wYRfRMZicGI=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tough-cookie/-/tough-cookie-6.0.2.tgz}
+    resolution: {integrity: sha1-ex8i/PLa8GxP+dU+wYRfRMZicGI=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tough-cookie/-/tough-cookie-6.0.2.tgz}
     engines: {node: '>=16'}
 
   tr46@6.0.0:
@@ -1311,7 +1327,7 @@ packages:
     engines: {node: '>=20'}
 
   tree-kill@1.2.2:
-    resolution: {integrity: sha1-TKCakJLIi3OnzcXooBtQeweQoMw=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tree-kill/-/tree-kill-1.2.2.tgz}
+    resolution: {integrity: sha1-TKCakJLIi3OnzcXooBtQeweQoMw=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/tree-kill/-/tree-kill-1.2.2.tgz}
     hasBin: true
 
   tsdown@0.22.14:
@@ -1354,7 +1370,7 @@ packages:
     hasBin: true
 
   unconfig-core@7.5.0:
-    resolution: {integrity: sha1-aPPQAHASiEGPPTYgPYhvOMOYZnc=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/unconfig-core/-/unconfig-core-7.5.0.tgz}
+    resolution: {integrity: sha1-aPPQAHASiEGPPTYgPYhvOMOYZnc=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/unconfig-core/-/unconfig-core-7.5.0.tgz}
 
   undici@8.10.0:
     resolution: {integrity: sha1-Z+18QIfw9A+6e+86RvK+gFcvJHM=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/undici/-/undici-8.10.0.tgz}
@@ -1384,11 +1400,11 @@ packages:
     engines: {node: '>=18'}
 
   webidl-conversions@8.0.1:
-    resolution: {integrity: sha1-Blflcf5vBvyxXKUO0f28tJXNFoY=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/webidl-conversions/-/webidl-conversions-8.0.1.tgz}
+    resolution: {integrity: sha1-Blflcf5vBvyxXKUO0f28tJXNFoY=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/webidl-conversions/-/webidl-conversions-8.0.1.tgz}
     engines: {node: '>=20'}
 
   whatwg-mimetype@5.0.0:
-    resolution: {integrity: sha1-2CMoldvVJ86u5079QWIAj7ioz0g=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/whatwg-mimetype/-/whatwg-mimetype-5.0.0.tgz}
+    resolution: {integrity: sha1-2CMoldvVJ86u5079QWIAj7ioz0g=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/whatwg-mimetype/-/whatwg-mimetype-5.0.0.tgz}
     engines: {node: '>=20'}
 
   whatwg-url@16.0.1:
@@ -1400,7 +1416,7 @@ packages:
     engines: {node: ^22.14.0 || >=24.0.0}
 
   ws@8.21.3:
-    resolution: {integrity: sha1-ZgtPrdtqPldchuB4EmkZlh9N5Pw=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/ws/-/ws-8.21.3.tgz}
+    resolution: {integrity: sha1-ZgtPrdtqPldchuB4EmkZlh9N5Pw=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/ws/-/ws-8.21.3.tgz}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -1416,16 +1432,16 @@ packages:
     engines: {node: '>=18'}
 
   xmlchars@2.2.0:
-    resolution: {integrity: sha1-Bg/hvLf5x2/ioX24apvDq4lCEMs=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/xmlchars/-/xmlchars-2.2.0.tgz}
+    resolution: {integrity: sha1-Bg/hvLf5x2/ioX24apvDq4lCEMs=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/xmlchars/-/xmlchars-2.2.0.tgz}
 
   yuku-ast@0.8.7:
-    resolution: {integrity: sha1-yO8h3VKUq9JiWXvYX17BYt3RMmI=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/yuku-ast/-/yuku-ast-0.8.7.tgz}
+    resolution: {integrity: sha1-yO8h3VKUq9JiWXvYX17BYt3RMmI=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/yuku-ast/-/yuku-ast-0.8.7.tgz}
 
   yuku-codegen@0.8.7:
-    resolution: {integrity: sha1-maU7u4F0GJcJoZHetMuJG9drS80=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/yuku-codegen/-/yuku-codegen-0.8.7.tgz}
+    resolution: {integrity: sha1-maU7u4F0GJcJoZHetMuJG9drS80=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/yuku-codegen/-/yuku-codegen-0.8.7.tgz}
 
   yuku-parser@0.8.7:
-    resolution: {integrity: sha1-P9dPrM36kCNW9WyoahDmmmOdUSs=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/yuku-parser/-/yuku-parser-0.8.7.tgz}
+    resolution: {integrity: sha1-P9dPrM36kCNW9WyoahDmmmOdUSs=, tarball: https://ms-feed-17.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/yuku-parser/-/yuku-parser-0.8.7.tgz}
 
   zod@4.4.3:
     resolution: {integrity: sha1-toDxcohdGLvr8hqDTqJeVaG781Y=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/zod/-/zod-4.4.3.tgz}
@@ -2186,6 +2202,13 @@ snapshots:
       '@deepseek-ai/dsh-agent': 0.1.1-rc.2(c1537a8836b04097f168b024f1e38d85)
       '@deepseek-ai/dsh-invariants': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)
       '@deepseek-ai/dsh-llm': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-attachment@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-timeout@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))
+
+  '@deepseek-ai/dsh-web@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-llm@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-attachment@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-timeout@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))))':
+    dependencies:
+      '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-invariants': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)
+      '@deepseek-ai/dsh-llm': 0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-attachment@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-brand@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-timeout@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))
+      '@deepseek-ai/schemastery': 3.18.1
 
   '@deepseek-ai/dsh-workspace@0.1.1-rc.2(ca1aef6913f66bb64a14405a8170db89)':
     dependencies:
