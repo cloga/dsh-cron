@@ -15,7 +15,7 @@ assert.equal((client.match(/window\.__ModuleLoader__\.load\(/g) ?? []).length, 1
 assert.match(client, /^window\.__ModuleLoader__\.load\(\{ id: "dsh-cron", factory: \(require\) => \{/)
 assert.match(client, /return module\.exports; \} \}\);\s*$/)
 
-const releaseWorkflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8')
+const releaseWorkflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8').replaceAll('\r\n', '\n')
 for (const marker of [
   "tags:\n      - 'v*'",
   'a66e4702047846cdaa10c66c9d3df3951f5ea70d',
