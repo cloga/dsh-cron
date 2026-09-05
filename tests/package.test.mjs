@@ -47,7 +47,11 @@ const output = mkdtempSync(join(tmpdir(), 'dsh-cron-pack-'))
 try {
   const pnpmCli = process.env.npm_execpath
   assert.ok(pnpmCli, 'verify:package must run through pnpm')
-  execFileSync(process.execPath, [pnpmCli, 'pack', '--pack-destination', output], {
+  const isJavaScriptCli = /\.(?:cjs|mjs|js)$/i.test(pnpmCli)
+  execFileSync(isJavaScriptCli ? process.execPath : pnpmCli, [
+    ...(isJavaScriptCli ? [pnpmCli] : []),
+    'pack', '--pack-destination', output,
+  ], {
     cwd: root,
     stdio: 'inherit',
   })
