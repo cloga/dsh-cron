@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Register a session-scoped Cron tab through the optional Better Sidebar 0.18 public client contract, without importing or changing Better Sidebar.
+- Reveal the owning right/bottom panel (or narrow drawer) on header/notification entry; reuse detached windows without opening unrelated panels.
+- Retain a native modal-dialog fallback for absent, unsupported, disabled or removed sidebar integration, avoiding cross-plugin stacking conflicts.
+- Isolate tab selection and badges by Session, re-prime notification watchers on owner changes, ignore stale panel responses, and stop hidden panel polling.
+- Group notification preferences in the panel header and add deterministic real-React/portal tests for fallback, session ownership, notifications and optional-service lifecycle.
+
 ## 0.4.2
 
 - Add bounded compatibility with DSH Core `0.1.3-alpha.1` while retaining the `0.1.1-rc.2` and `0.1.2` compatibility lines.
