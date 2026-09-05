@@ -19,7 +19,7 @@
 **从 GitHub 安装（推荐使用已验证的不可变 tag）**：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.4.1
+dsh plugin --profile web add github:cloga/dsh-cron#v0.4.2
 ```
 
 不带 tag 的 `github:cloga/dsh-cron` 会跟随移动的默认分支，只用于开发，不作为部署验证证据。
@@ -28,7 +28,7 @@ dsh plugin --profile web add github:cloga/dsh-cron#v0.4.1
 
 ```sh
 dsh plugin --profile web add ./dsh-cron            # 本地目录（开发用 link）
-dsh plugin --profile web add ./dsh-cron-0.4.1.tgz  # pnpm pack 产物
+dsh plugin --profile web add ./dsh-cron-0.4.2.tgz  # pnpm pack 产物
 ```
 
 **验证与卸载**：
@@ -107,7 +107,7 @@ HTTP API 通过可选注入挂载（`ctx.inject(['webServer','webRuntime'])`）�
 | **安装脚本** | ❌ 无 `prepare`/`postinstall` 等任何安装期脚本 | 无（GitHub 安装不需要构建授权） |
 | **Shell / 系统命令** | ⚠️ 仅用于系统通知：macOS 调 `osascript -e 'display notification …'`、Linux 调 `notify-send`；可用 `systemNotify: false` 完全关闭 | 低；命令固定无注入面（参数经 JSON 转义） |
 
-可靠性设计：任务运行记录持久化（重启不重发，遗留 `delivered`/`running` 记录转为 `interrupted`）、`daily` 错过补发一次、所有回调入口有防崩溃包裹（插件故障不会拖垮宿主进程）。会话绑定严格固定：目标 Session 无法恢复时保留逾期任务并在后续 tick 重试，绝不投递到其他 Session；持久化 header 标记为 `origin: subagent` 或 `delegationDepth > 0` 时拒绝 cold resume。Core 0.1.3-alpha.1 使用 `list()` snapshot 的 `snapshot.header`，再以 `open(id, 'read')` / `handle.read()` 读取，并在 `finally` 中关闭 handle；旧 Core 继续回退到 header 列表与 `inspect()`。
+可靠性设计：任务运行记录持久化（重启不重发，遗留 `delivered`/`running` 记录转为 `interrupted`）、`daily` 错过补发一次、所有回调入口有防崩溃包裹（插件故障不会拖垮宿主进程）。会话绑定严格固定：目标 Session 无法恢复时保留逾期任务并在后续 tick 重试，绝不投递到其他 Session；持久化 header 标记为 `origin: subagent` 或 `delegationDepth > 0` 时拒绝 cold resume。Core 0.1.3-alpha.1 使用 `list()` snapshot 的 `snapshot.header`，再以 `open(id, 'read')` / `handle.read()` 读取，并在 `finally` 中关闭 handle；旧 Core 仅在运行时 API 形状没有 `open()` 时回退到 header 列表与 `inspect()`，不会把新接口的读取或关闭错误降级为旧接口。若 `handle.close()` 失败，本次 cold resume 失败并保留逾期任务供后续 tick 重试。
 
 ## 兼容性
 

@@ -30,6 +30,7 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
   const persistenceReads = []
   const persistenceCloses = []
   const persistenceInspects = []
+  const warnings = []
   const inspected = options.inspected ?? {
     meta: { id: 'sess-1', cwd: 'C:\\workspace', agentPreset: 'standard' },
     events: [
@@ -74,7 +75,7 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
     }
   }
   const ctx = {
-    logger: { info: () => {}, warn: (m) => console.warn('  [warn]', m) },
+    logger: { info: () => {}, warn: (m) => { warnings.push(m); console.warn('  [warn]', m) } },
     agents: {
       roots: () => roots,
       resume: async (request) => {
@@ -122,7 +123,7 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
   const emit = (event, ...args) => listeners.get(event)?.(...args)
   return {
     ctx, fired, tools, routes, disposers, mockAgent, mockSession, emit, roots, resumes, mounts, selections,
-    persistenceOpens, persistenceReads, persistenceCloses, persistenceInspects,
+    persistenceOpens, persistenceReads, persistenceCloses, persistenceInspects, warnings,
   }
 }
 
@@ -398,6 +399,25 @@ assert.equal(closeFailure.fired.length, 0)
 closeFailure.disposers.forEach((d) => d?.())
 rmSync(closeDir, { recursive: true, force: true })
 console.log('✓ handle read failure closes the read handle')
+
+// --- close failure invalidates the cold read; never resume from an unreleased handle
+const closeErrorDir = mkdtempSync(join(tmpdir(), 'dsh-cron-close-error-'))
+const closeError = makeCtx(join(closeErrorDir, 'tasks.json'), join(closeErrorDir, 'history.jsonl'), [
+  { id: 'close-error', prompt: 'must not resume', at: past, sessionId: 'sess-close-error' },
+], {
+  roots: [otherAgent],
+  persistenceApi: 'handle',
+  persistenceCloseError: new Error('close failed'),
+  inspected: { meta: { id: 'sess-close-error', cwd: 'C:\\workspace' }, events: [] },
+})
+await new Promise((r) => setTimeout(r, 2200))
+assert.ok(closeError.persistenceCloses.length >= 1, 'close is attempted on every cold read')
+assert.equal(closeError.resumes.length, 0, 'close failure prevents resume')
+assert.equal(closeError.fired.length, 0, 'close failure leaves the task overdue')
+assert.ok(closeError.warnings.some((warning) => warning.includes('cannot inspect bound session "sess-close-error": close failed')))
+closeError.disposers.forEach((d) => d?.())
+rmSync(closeErrorDir, { recursive: true, force: true })
+console.log('✓ handle close failure aborts cold resume and is logged')
 
 // --- durable subagent ownership is never promoted through cold resume
 for (const lineage of [
