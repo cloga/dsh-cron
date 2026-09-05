@@ -219,8 +219,11 @@ await cancel()
 await attach()
 assert.ok(descriptor, 'service can return without duplicate registration')
 const originalOpen = service.openTab
-service.openTab = () => { throw new Error('expected open failure') }
+enabled = true
+let failedOpenAttempts = 0
+service.openTab = () => { failedOpenAttempts++; throw new Error('expected open failure') }
 await click(findButton('trigger.aria'))
+assert.equal(failedOpenAttempts, 1, 'failure case actually attempts the enabled sidebar open')
 assert.ok(document.querySelector('dialog'), 'open failure falls back without losing access')
 await cancel()
 service.openTab = originalOpen
