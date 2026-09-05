@@ -134,6 +134,16 @@ HTTP API 通过可选注入挂载（`ctx.inject(['webServer','webRuntime'])`）�
 
 与其他插件共存：开发分支提供上述 Better Sidebar 可选集成，修复独立抽屉与侧栏控件的层叠冲突；会话头部继续使用 `order: -50` 与 dsh-session-manager 的按钮（-40/-30/-10）相邻。
 
+### Better Sidebar 收回按钮兼容修复（开发分支，尚未发布）
+
+`dsh-tauri 0.6.7` 为隐藏左侧栏重复按钮，使用了全局 `Collapse sidebar` / `收起侧边栏` 标签选择器；它也会隐藏 `Better Sidebar 0.18.0` 展开后的同名右侧收回按钮（英文界面可复现）。本项目在 Client 样式中附带一个局部兼容覆盖，仅恢复 `[data-dsh-panel-host] [data-dsh-toggle-cluster]` 内匹配的原生按钮。
+
+- 原生展开/收回动作、标签页、编辑器及 Session 状态不变；左侧栏和底部面板不受影响。
+- 无需额外安装 Better Sidebar 依赖；未安装时选择器不匹配，不产生额外 UI。
+- 与 Cron 样式共同加载和卸载，不修改 DSH / Better Sidebar 的安装源码或用户配置。
+- 此修复尚不在上面的 `v0.4.2` tag 中；测试开发版本请先 `pnpm install && pnpm build`，再按本地目录方式安装，按安装章节说明在安全时机重启并刷新。仅修改本仓库不会自动更新正在运行的 Desktop。
+- 待 dsh-tauri 将隐藏规则限定到左侧导航后可移除此覆盖。此项不是 Cron 标签页集成（另见 issue #15）。
+
 ## 工作原理
 
 - 触发时通过 `agent.followup()` 向任务绑定的会话注入一条 `source: plugin` 的用户消息，Agent 将其作为普通一轮对话执行；Agent 忙时任务排队，不会并发重叠。
@@ -150,12 +160,14 @@ pnpm typecheck
 pnpm test         # host ownership/restart + client bundle/DOM + Core 兼容
 DSH_CORE_PATH=/path/to/dsh-0.1.3-alpha.1 pnpm test:core  # 校验官方 alpha.1 精确 commit 与 handle API
 pnpm verify       # typecheck + build + tests + freshness/pack smoke
+pnpm exec playwright install chromium   # 首次浏览器回归测试
+pnpm test:sidebar # 收回按钮兼容 + Cron 标签页/dialog/焦点/通知/窄屏；CI 单独运行
 ```
 
 可选的额外验证（不会访问真实任务 API 或修改正在运行的 GUI）：
 
 - `node tests/sidebar-contract.test.mjs`：先设置 `DSH_BETTER_SIDEBAR_PATH` 指向带 `src/client` 的 Better Sidebar **0.18.0** 包目录；使用真实 Sidebar reducer 和 Cordis 验证去重、嵌套分屏、浮窗、会话定位及可选服务装卸。
-- `node tests/browser.test.mjs`：测试环境需有 Playwright 与 Chromium；可用 `DSH_PLAYWRIGHT_MODULE` 指向已有 `playwright/index.mjs`，用 `DSH_CHROMIUM_EXECUTABLE` 指定已有浏览器可执行文件。测试使用隔离的 React 页面和模拟 Sidebar 容器，验证原生 modal、焦点、通知点击及亮/暗/窄屏布局，不等同于当前 GUI 的部署验证。
+- `node tests/browser.test.mjs`：也可单独运行已纳入 `pnpm test:sidebar` 的交互测试；使用开发依赖 `@playwright/test` 与已安装的 Chromium，可用 `DSH_PLAYWRIGHT_MODULE` 指向已有 `playwright/index.mjs`，用 `DSH_CHROMIUM_EXECUTABLE` 指定已有浏览器可执行文件。测试使用隔离的 React 页面和模拟 Sidebar 容器，验证原生 modal、焦点、通知点击及亮/暗/窄屏布局，不等同于当前 GUI 的部署验证。
 - 浏览器截图及结果默认写入临时目录，或用 `DSH_BROWSER_ARTIFACTS` 指定输出目录。这些测试工具无需成为 Cron 的运行时依赖。
 
 开发依赖保留在可用的受控 `0.1.1-rc.2` 编译闭包。发布前设置 `DSH_CORE_PATH` 指向官方 `0.1.2-rc.1` 或 `0.1.3-alpha.1` source checkout；`test:core` 校验对应精确 commit，并验证旧 `inspect()` seam 或 alpha.1 的 snapshot + read handle seam。Host 所有权、HTTP 所有权、重启恢复、Client 注册/交互及打包新鲜度分别由 `host.test.mjs`、`client.test.mjs`、`toast-render.test.mjs`、`core-compat.test.mjs` 和 `package.test.mjs` 覆盖。

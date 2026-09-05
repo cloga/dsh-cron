@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const { chromium } = await import(process.env.DSH_PLAYWRIGHT_MODULE
-  ? pathToFileURL(resolve(process.env.DSH_PLAYWRIGHT_MODULE)).href : 'playwright')
+  ? pathToFileURL(resolve(process.env.DSH_PLAYWRIGHT_MODULE)).href : '@playwright/test')
 const artifacts = process.env.DSH_BROWSER_ARTIFACTS
   ?? await mkdtemp(join(tmpdir(), 'dsh-cron-browser-'))
 await mkdir(artifacts, { recursive: true })
