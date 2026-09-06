@@ -119,6 +119,9 @@ try {
   const assertStableClock = async expanded => {
     const entry = page.locator('.dsh-cron-trigger')
     await entry.waitFor({ state: 'visible' })
+    // Pane visibility changes before React's passive effect updates the shared
+    // open-state snapshot. Wait for that user-visible state, not just the icon.
+    await page.waitForFunction(value => document.querySelector('.dsh-cron-trigger')?.getAttribute('aria-expanded') === String(value), expanded)
     assert.equal(await entry.locator('svg').count(), 1)
     assert.equal(await entry.locator('.dsh-cron-triggerLabel, .dsh-cron-count').count(), 0)
     assert.equal(await entry.getAttribute('aria-expanded'), String(expanded))
