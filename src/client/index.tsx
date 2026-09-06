@@ -783,8 +783,9 @@ function CronAction({ t, sessionId }: SlotProps) {
   const tr = t ?? fallbackT
   const state = useDrawerState()
   const { count, unread, visible } = sessionView(sessionId ?? null)
-  const compact = visible && sidebar !== null
-  const open = compact || (state.open && state.drawerSessionId === sessionId)
+  // Presentation is constant; open state still follows the actual destination.
+  const open = (visible && sidebar !== null) || (state.open && state.drawerSessionId === sessionId)
+  const description = tr('trigger.summary', { count, unread })
   useEffect(() => {
     setActiveSession(sessionId ?? null)
     return () => { if (activeSessionId === sessionId) setActiveSession(null) }
@@ -793,10 +794,11 @@ function CronAction({ t, sessionId }: SlotProps) {
   return (
     <button
       type="button"
-      className={`${open ? styles.triggerActive : styles.trigger}${compact ? ` ${styles.triggerCompact}` : ''}`}
+      className={`${open ? styles.triggerActive : styles.trigger} ${styles.triggerCompact}`}
       aria-expanded={open}
       aria-label={tr('trigger.aria')}
-      title={tr('trigger.aria')}
+      aria-description={description}
+      title={`${tr('trigger.aria')} — ${description}`}
       disabled={!sessionId}
       onClick={() => {
         if (!sessionId) return
@@ -804,16 +806,11 @@ function CronAction({ t, sessionId }: SlotProps) {
         else openDrawer(sessionView(sessionId).tab, sessionId)
       }}
     >
-      {compact ? (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3 2" />
-        </svg>
-      ) : <>
-        <span className={styles.triggerLabel}>{tr('trigger.aria')}</span>
-        {count > 0 ? <span className={styles.count}>{count}</span> : null}
-        {unread > 0 ? <span className={styles.unreadBadge}>{unread}</span> : null}
-      </>}
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+      {unread > 0 ? <span className={styles.unreadBadge} aria-hidden="true">{unread > 99 ? '99+' : unread}</span> : null}
     </button>
   )
 }

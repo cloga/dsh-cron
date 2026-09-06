@@ -23,6 +23,7 @@ const results = []
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' })
   page.on('pageerror', error => errors.push(error.message))
+  await page.clock.install()
   await page.setContent(`<!doctype html><html><head><style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
     body { margin:0; background:Canvas; color:CanvasText; }
@@ -59,11 +60,12 @@ try {
     const disposers = []
     let optional
     let owner = 'demo-session-00000000-1111-2222-3333-444444444444'
+    let recordVersion = 1
     window.fetch = async (url, options) => {
       const payload = JSON.parse(options.body)
       if (payload.sessionId !== owner) throw new Error('Unexpected owner')
       const tasks = [0, 1, 2].map(index => ({ id: 'daily-report-' + index, sessionId: owner, prompt: 'Summarize the latest project progress and verification results.', enabled: true, origin: 'dynamic', schedule: { daily: '09:00', timeZone: 'Asia/Shanghai' }, nextRunAt: '2026-09-06T01:00:00Z' }))
-      const records = [{ id: 'run-1', taskId: tasks[0].id, sessionId: owner, status: 'completed', firedAt: '2026-09-05T01:00:00Z', scheduledFor: '2026-09-05T01:00:00Z', startedAt: 0, completedAt: 42000, excerpt: 'Task finished. All three reports were reused; no duplicate publication.' }]
+      const records = [{ id: 'run-' + recordVersion, taskId: tasks[0].id, sessionId: owner, status: 'completed', firedAt: '2026-09-05T01:00:00Z', scheduledFor: '2026-09-05T01:00:00Z', startedAt: 0, completedAt: 42000, excerpt: 'Task finished. All three reports were reused; no duplicate publication.' }]
       return { json: async () => ({ ok: true, result: String(url).endsWith('/list') ? { tasks } : { records } }) }
     }
     const ctx = {
@@ -99,6 +101,7 @@ try {
       },
       detach() { bridgeDispose?.(); bridgeDispose = null },
       opens: () => opens,
+      activity() { recordVersion++ },
       visibility(value) {
         document.getElementById('sidebar').hidden = !value
         sideRoot.render(R.createElement(descriptor.component, { scope: { sessionId: owner }, visible: value }))
@@ -113,9 +116,30 @@ try {
   })
   const trigger = page.getByRole('button', { name: 'Scheduled tasks', exact: true })
   const dialog = page.locator('dialog')
+  const assertStableClock = async expanded => {
+    const entry = page.locator('.dsh-cron-trigger')
+    await entry.waitFor({ state: 'visible' })
+    // Pane visibility changes before React's passive effect updates the shared
+    // open-state snapshot. Wait for that user-visible state, not just the icon.
+    await page.waitForFunction(value => document.querySelector('.dsh-cron-trigger')?.getAttribute('aria-expanded') === String(value), expanded)
+    assert.equal(await entry.locator('svg').count(), 1)
+    assert.equal(await entry.locator('.dsh-cron-triggerLabel, .dsh-cron-count').count(), 0)
+    assert.equal(await entry.getAttribute('aria-expanded'), String(expanded))
+    const label = await entry.getAttribute('aria-label')
+    const description = await entry.getAttribute('aria-description')
+    assert.match(description, label === 'Scheduled tasks'
+      ? /^\d+ enabled tasks · \d+ unread updates$/
+      : /^已启用 \d+ 个任务 · \d+ 条未读动态$/)
+    assert.equal(await entry.getAttribute('title'), `${label} — ${description}`)
+    const box = await entry.boundingBox()
+    assert.equal(box.width, 28, 'clock target width is constant')
+    assert.equal(box.height, 28, 'clock target height is constant')
+  }
+  await assertStableClock(false) // no Sidebar service, closed fallback
   await trigger.click()
   await dialog.waitFor({ state: 'visible' })
   assert.equal(await dialog.evaluate(element => element.matches(':modal')), true, 'native modal top layer')
+  await assertStableClock(true)
   const close = page.getByRole('button', { name: 'Close', exact: true })
   assert.equal(await close.evaluate(element => {
     const box = element.getBoundingClientRect()
@@ -176,11 +200,22 @@ try {
   assert.equal(await page.evaluate(() => window.fixture.opens()), 2, 'repeat entry focuses sidebar through service')
   await settingsSummary.click()
   await page.evaluate(() => window.fixture.visibility(false))
-  await trigger.locator('.dsh-cron-triggerLabel').waitFor({ state: 'visible' })
+  await panel.waitFor({ state: 'hidden' })
+  await assertStableClock(false) // another tab or collapsed pane still uses clock
+  await page.evaluate(() => window.fixture.activity())
+  await page.clock.runFor(20_000)
+  await page.clock.resume()
+  const unread = trigger.locator('.dsh-cron-unreadBadge')
+  await unread.waitFor({ state: 'visible' })
+  assert.equal(await unread.innerText(), '1')
+  assert.equal(await trigger.getAttribute('aria-description'), '3 enabled tasks · 1 unread updates')
+  assert.equal(await unread.evaluate(el => getComputedStyle(el).position), 'absolute')
+  await assertStableClock(false) // unread activity does not widen the icon
   assert.equal(await panel.locator('.dsh-cron-settings').evaluate(el => el.open), false, 'hiding pane closes disclosure')
   await trigger.click()
   await panel.waitFor({ state: 'visible' })
-  assert.equal(await trigger.locator('.dsh-cron-triggerLabel').count(), 0, 'reopening safely returns compact entry')
+  await assertStableClock(true)
+  assert.equal(await trigger.locator('.dsh-cron-unreadBadge').count(), 0, 'opening owner pane clears unread badge')
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.screenshot({ path: join(artifacts, 'sidebar-dark.png') })
   await page.setViewportSize({ width: 360, height: 740 })
@@ -204,6 +239,9 @@ try {
     await page.evaluate(value => window.fixture.language(value), language)
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
     await assertMenuFits()
+    await assertStableClock(true) // invariant in English and Chinese
+    assert.equal(await page.locator('.dsh-cron-trigger').getAttribute('aria-description'), language === 'en'
+      ? '3 enabled tasks · 0 unread updates' : '已启用 3 个任务 · 0 条未读动态')
     const lastControl = panel.locator('.dsh-cron-settingsBody button').last()
     await lastControl.focus()
     assert.equal(await lastControl.evaluate(el => {
@@ -222,6 +260,7 @@ try {
   await page.screenshot({ path: join(artifacts, 'sidebar-narrow.png') })
   await page.evaluate(() => window.fixture.detach())
   await page.locator('.dsh-cron-sidebarPanel').waitFor({ state: 'detached' })
+  await assertStableClock(false) // removing optional service never changes presentation
   await trigger.click()
   await dialog.waitFor({ state: 'visible' })
   assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), true, 'narrow fallback does not overflow')

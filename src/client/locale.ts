@@ -2,6 +2,7 @@
 
 export const zh: Record<string, string> = {
   'trigger.aria': '定时任务',
+  'trigger.summary': '已启用 {count} 个任务 · {unread} 条未读动态',
   'drawer.close': '关闭',
   'drawer.test': '测试通知',
   'drawer.testShort': '测试',
@@ -59,6 +60,7 @@ export const zh: Record<string, string> = {
 
 export const en: Record<string, string> = {
   'trigger.aria': 'Scheduled tasks',
+  'trigger.summary': '{count} enabled tasks · {unread} unread updates',
   'drawer.close': 'Close',
   'drawer.test': 'Test notification',
   'drawer.testShort': 'Test',

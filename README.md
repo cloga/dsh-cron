@@ -27,13 +27,13 @@
 
 ## 界面预览
 
-> 以下图片使用 **v0.4.5 的真实 Cron Client bundle 和 React 组件**渲染。外围页面、Better Sidebar 容器及任务 API 均为隔离演示，使用示例数据；不是用户真实会话截图，也不代表本机部署已更新。可点击图片查看原尺寸。[截图来源与复现方式](docs/images/README.md)
+> 以下图片使用 **v0.4.6 的真实 Cron Client bundle 和 React 组件**渲染。外围页面、Better Sidebar 容器及任务 API 均为隔离演示，使用示例数据；不是用户真实会话截图，也不代表本机部署已更新。可点击图片查看原尺寸。[截图来源与复现方式](docs/images/README.md)
 
 ### 定时任务：融入 Sidebar，不再另占一个右侧抽屉
 
 ![深色组件演示：Sidebar 内的定时任务标签页，包含任务状态、下次执行时间和管理操作](docs/images/sidebar-tasks-dark.png)
 
-从会话头部的 **「定时任务 / Scheduled tasks」** 入口进入；已有标签页会被复用。**v0.4.5 起，面板可见时头部入口缩为时钟图标**，关闭或切换后恢复文字与数量。嵌入内容只保留一行「任务 / 执行记录 / 齿轮」工具栏，不再重复外层页签标题和常驻 Session ID。所在的右侧、底部或窄屏面板仍会按需展开，已分离的浮窗不会额外展开其他面板。
+从会话头部的 **「定时任务 / Scheduled tasks」** 入口进入；已有标签页会被复用。**v0.4.6 起，顶部入口始终是固定大小的时钟图标**：不论当前选择 Cron、Files、子代理 Tasks，或侧栏关闭/不可用，都不再切换成文字。悬停提示和读屏描述保留任务数量与未读信息；未读角标不会撑宽按钮。嵌入内容只保留一行「任务 / 执行记录 / 齿轮」工具栏，不再重复外层页签标题和常驻 Session ID。所在的右侧、底部或窄屏面板仍会按需展开，已分离的浮窗不会额外展开其他面板。
 
 <details>
 <summary><strong>查看执行记录（浅色主题）</strong></summary>
@@ -62,15 +62,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.4.5
+dsh plugin --profile web add github:cloga/dsh-cron#v0.4.6
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.4.5 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.4.5) 下载 `dsh-cron-0.4.5.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.4.6 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.4.6) 下载 `dsh-cron-0.4.6.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.4.5.tgz
+dsh plugin --profile web add ./dsh-cron-0.4.6.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -82,7 +82,7 @@ dsh plugin --profile web add ./dsh-cron-0.4.5.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.5'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.6'
 ```
 
 </details>
@@ -95,7 +95,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.5'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.4.5`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.4.6`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 
@@ -126,7 +126,7 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 
 ### 用面板管理和追踪
 
-点击会话头部的「定时任务」，在 **任务** 与 **执行记录** 间切换。兼容的 Better Sidebar 会承载面板；否则自动使用独立面板。跨会话的旧通知会打开注明原 Session 的独立面板，不把原会话任务塞进当前侧栏，也不会静默切换会话。
+点击会话头部的时钟图标（提示为「定时任务 / Scheduled tasks」），在 **任务** 与 **执行记录** 间切换。兼容的 Better Sidebar 会承载面板；否则自动使用独立面板。跨会话的旧通知会打开注明原 Session 的独立面板，不把原会话任务塞进当前侧栏，也不会静默切换会话。
 
 模型工具：`cron_list`、`cron_add`、`cron_update`、`cron_remove`、`cron_history`。它们只接受当前 live root Session 的所有权；子代理或无 Agent 的调用会被拒绝。
 
@@ -178,7 +178,7 @@ Core 0.1.3 使用 snapshot header 与可关闭的 read handle；旧 Core 使用�
 
 ## 常见问题
 
-**安装后为何看不到定时任务标签页？** 先确认安装的是 v0.4.4 或后续兼容版本，并已激活新 Client bundle；再检查 Better Sidebar 服务版本/能力以及 Cron 标签页是否启用。头部按钮仍然保留，用它进入任务页。若条件不满足，出现独立面板是正常回退，不是数据丢失。
+**安装后为何看不到定时任务标签页？** 先确认安装的是 v0.4.4 或后续兼容版本，并已激活新 Client bundle；再检查 Better Sidebar 服务版本/能力以及 Cron 标签页是否启用。头部时钟入口始终保留，用它进入任务页；从 v0.4.6 起不会随页签切换在文字和图标之间变化。若条件不满足，出现独立面板是正常回退，不是数据丢失。
 
 **Sidebar 展开后收回按钮消失？** v0.4.3 起附带针对 `dsh-tauri 0.6.7` 全局标签选择器冲突的局部样式兼容修复，仅恢复 Better Sidebar 的原生控件，不修改左侧导航。v0.4.4 也包含该修复。
 

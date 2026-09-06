@@ -64,6 +64,7 @@ const requests = []
 let pendingList = null
 let pendingAction = null
 let completeRun = false
+let extraCompleted = 0
 const task = owner => ({ id: 'task-' + owner, prompt: 'prompt-' + owner, enabled: true, origin: 'dynamic', sessionId: owner, schedule: { everySeconds: 60 }, lastRunAt: null, nextRunAt: null })
 globalThis.fetch = async (url, options) => {
   const payload = JSON.parse(options.body)
@@ -73,7 +74,7 @@ globalThis.fetch = async (url, options) => {
   if (url.endsWith('/list') && pendingList?.owner === owner) await pendingList.promise
   if (url.endsWith('/run') && pendingAction) await pendingAction
   const result = url.endsWith('/list') ? { tasks: [task(owner)] }
-    : url.endsWith('/history') ? { records: [{ id: 'run-' + owner, taskId: 'task-' + owner, sessionId: owner, prompt: '', scheduledFor: '', firedAt: '', status: completeRun ? 'completed' : 'delivered', excerpt: 'result-' + owner }] } : {}
+    : url.endsWith('/history') ? { records: [{ id: 'run-' + owner, taskId: 'task-' + owner, sessionId: owner, prompt: '', scheduledFor: '', firedAt: '', status: completeRun ? 'completed' : 'delivered', excerpt: 'result-' + owner }, ...Array.from({ length: extraCompleted }, (_, i) => ({ id: `extra-${owner}-${i}`, taskId: 'task-' + owner, sessionId: owner, prompt: '', scheduledFor: '', firedAt: '', status: 'completed', excerpt: 'extra result' }))] } : {}
   return { json: async () => ({ ok: true, result }) }
 }
 const render = async (owner = 'A') => act(async () => {
@@ -103,11 +104,27 @@ const escapeSettings = async details => {
 }
 
 await render()
+const stableEntry = document.querySelector('#root .dsh-cron-trigger')
+function assertClock(open) {
+  const entry = document.querySelector('#root .dsh-cron-trigger')
+  assert.equal(entry, stableEntry, 'entry DOM node remains mounted across states')
+  assert.ok(entry.classList.contains('dsh-cron-triggerCompact'))
+  assert.equal(entry.querySelectorAll('svg').length, 1)
+  assert.equal(entry.querySelector('.dsh-cron-triggerLabel'), null, 'never switch back to text')
+  assert.equal(entry.querySelector('.dsh-cron-count'), null, 'enabled count does not change width')
+  assert.equal(entry.getAttribute('aria-label'), 'trigger.aria')
+  assert.ok(entry.getAttribute('aria-description').startsWith('trigger.summary:'))
+  assert.ok(entry.title.includes(entry.getAttribute('aria-description')), 'count summary remains discoverable')
+  if (open !== undefined) assert.equal(entry.getAttribute('aria-expanded'), String(open))
+  return entry
+}
+assertClock(false)
 assert.equal(document.querySelector('dialog'), null, 'no hidden focusable fallback panel')
 assert.equal(document.querySelector('.dsh-cron-toastStack').parentElement, document.body, 'real body portal')
 assert.equal(intervals.size, 1, 'one owner watcher while closed')
 await click(findButton('trigger.aria'))
 assert.ok(document.querySelector('dialog[open]'), 'standalone fallback opens')
+assertClock(true)
 assert.ok(document.querySelector('dialog').textContent.includes('prompt-A'))
 assert.equal(intervals.size, 2, 'only visible panel polls')
 assert.equal(document.querySelectorAll('dialog .dsh-cron-drawerTitle').length, 1, 'fallback retains its title')
@@ -141,6 +158,9 @@ await render('A')
 completeRun = true
 await poll(20_000)
 assert.equal(document.querySelectorAll('.dsh-cron-toast').length, 1, 'new terminal status notifies once')
+assertClock(false)
+assert.equal(stableEntry.querySelector('.dsh-cron-unreadBadge').textContent, '1', 'icon keeps unread feedback')
+assert.equal(stableEntry.getAttribute('aria-description'), 'trigger.summary:1,1')
 await poll(20_000)
 assert.equal(document.querySelectorAll('.dsh-cron-toast').length, 1, 'repeated terminal state does not duplicate')
 await click(document.querySelector('.dsh-cron-toast'))
@@ -241,8 +261,7 @@ console.log('✓ optional service arrival, reveal destinations, all mutation own
 await openSettings(document.querySelector('.dsh-cron-sidebarPanel'))
 await act(async () => sideRoot.render(react.createElement(descriptor.component, { scope: { sessionId: 'A' }, visible: false })))
 assert.equal(document.querySelector('.dsh-cron-settings').open, false, 'hidden panel dismisses settings')
-assert.equal(document.querySelector('#root .dsh-cron-triggerCompact'), null, 'hidden sidebar restores discoverable text entry')
-assert.ok(document.querySelector('#root .dsh-cron-triggerLabel'))
+assertClock(false) // another tab / collapsed pane uses the same clock, not text
 assert.equal(intervals.size, 1, 'inactive sidebar tab pauses panel polling')
 await act(async () => sideRoot.render(react.createElement(descriptor.component, { scope: { sessionId: 'A' }, visible: true })))
 assert.equal(intervals.size, 2)
@@ -276,6 +295,7 @@ assert.ok(!document.querySelector('.dsh-cron-sidebarPanel').textContent.includes
 enabled = false
 await click(findButton('trigger.aria'))
 assert.ok(document.querySelector('dialog'), 'disabled tab type falls back without overriding user setting')
+assertClock(true)
 await cancel()
 await act(async () => { for (const dispose of bridgeCleanup.splice(0).reverse()) dispose() })
 await click(findButton('trigger.aria'))
@@ -298,6 +318,21 @@ assert.ok(document.querySelector('dialog'), 'open failure falls back without los
 await cancel()
 service.openTab = originalOpen
 console.log('✓ stale-response guard, disabled tab, service disposal, reattachment and failures')
+assertClock(false)
+extraCompleted = 100
+await poll(20_000)
+assert.equal(stableEntry.querySelector('.dsh-cron-unreadBadge').textContent, '99+', 'large unread counts are bounded')
+assert.equal(stableEntry.getAttribute('aria-description'), 'trigger.summary:1,100', 'full unread count stays accessible')
+await click(stableEntry)
+assertClock(true)
+assert.equal(stableEntry.querySelector('.dsh-cron-unreadBadge'), null, 'opening owner panel acknowledges unread activity')
+const requestsBeforeNoOwner = requests.length
+await render(null)
+assertClock(false)
+assert.ok(stableEntry.disabled, 'missing owner keeps the same icon but disables invocation')
+await click(stableEntry)
+assert.equal(requests.length, requestsBeforeNoOwner, 'no owner means no API invocation')
+console.log('✓ constant icon across all destinations, accessible counters and disabled state')
 
 await act(async () => {
   root.unmount()
