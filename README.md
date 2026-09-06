@@ -27,20 +27,20 @@
 
 ## 界面预览
 
-> 以下图片使用 **v0.4.4 的真实 Cron Client bundle 和 React 组件**渲染。外围页面、Better Sidebar 容器及任务 API 均为隔离演示，使用示例数据；不是用户真实会话截图，也不代表本机部署已更新。可点击图片查看原尺寸。[截图来源与复现方式](docs/images/README.md)
+> 以下图片使用 **v0.4.5 的真实 Cron Client bundle 和 React 组件**渲染。外围页面、Better Sidebar 容器及任务 API 均为隔离演示，使用示例数据；不是用户真实会话截图，也不代表本机部署已更新。可点击图片查看原尺寸。[截图来源与复现方式](docs/images/README.md)
 
 ### 定时任务：融入 Sidebar，不再另占一个右侧抽屉
 
 ![深色组件演示：Sidebar 内的定时任务标签页，包含任务状态、下次执行时间和管理操作](docs/images/sidebar-tasks-dark.png)
 
-从会话头部的 **「定时任务 / Scheduled tasks」** 按钮进入；已有标签页会被复用。所在的右侧面板、底部面板或窄屏抽屉会按需展开，已分离的浮窗不会额外展开其他面板。
+从会话头部的 **「定时任务 / Scheduled tasks」** 入口进入；已有标签页会被复用。**v0.4.5 起，面板可见时头部入口缩为时钟图标**，关闭或切换后恢复文字与数量。嵌入内容只保留一行「任务 / 执行记录 / 齿轮」工具栏，不再重复外层页签标题和常驻 Session ID。所在的右侧、底部或窄屏面板仍会按需展开，已分离的浮窗不会额外展开其他面板。
 
 <details>
 <summary><strong>查看执行记录（浅色主题）</strong></summary>
 
 ![浅色组件演示：定时任务的执行记录，展示完成与失败状态、耗时及结果摘要](docs/images/sidebar-history-light.png)
 
-任务与历史属于各自的 Session；隐藏标签页停止面板轮询，过期响应不会覆盖切换后的会话。通知偏好收纳在面板头部的「通知设置」中。
+任务与历史属于各自的 Session；隐藏标签页停止面板轮询，过期响应不会覆盖切换后的会话。完整 Session ID 和通知偏好可从右侧齿轮「面板设置」查看。设置菜单支持 Escape、点击外部及切换面板时关闭；短分屏中菜单内部可滚动。独立弹窗仍始终显示完整会话归属，尤其是来自其他会话的旧通知。
 
 </details>
 
@@ -62,15 +62,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.4.4
+dsh plugin --profile web add github:cloga/dsh-cron#v0.4.5
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.4.4 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.4.4) 下载 `dsh-cron-0.4.4.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.4.5 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.4.5) 下载 `dsh-cron-0.4.5.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.4.4.tgz
+dsh plugin --profile web add ./dsh-cron-0.4.5.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -82,7 +82,7 @@ dsh plugin --profile web add ./dsh-cron-0.4.4.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.4'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.5'
 ```
 
 </details>
@@ -95,7 +95,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.4'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.4.4`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.4.5`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 
@@ -213,7 +213,7 @@ PR：新版本 + changelog + 安装说明
 
 重要运行时、依赖、构建或发布流程变更必须在同一 PR 中递增版本。主分支要求 PR、保持最新及 `release-ready` 成功，管理员同样受约束；发布失败不能用绕过检查或覆盖 tag/资产来解决。代理须持续跟进到发布及产物核验完成，不等用户再次提醒。
 
-**纯文档/测试变更可明确说明无需新版本**；本 README 与配图更新即属此类，不会改写已发布的 v0.4.4 产物。需要重试发布时，重跑原提交的主分支 CI，不能另开绕过全平台测试的发布入口。
+**纯文档/测试变更可明确说明无需新版本**；实际 UI 行为变更（如 v0.4.5 的紧凑面板）则必须发布新版本，不能覆盖旧 tag 或产物。需要重试发布时，重跑原提交的主分支 CI，不能另开绕过全平台测试的发布入口。
 
 ---
 

@@ -58,7 +58,7 @@ try {
     const slots = new Map()
     const disposers = []
     let optional
-    let owner = 'session-demo'
+    let owner = 'demo-session-00000000-1111-2222-3333-444444444444'
     window.fetch = async (url, options) => {
       const payload = JSON.parse(options.body)
       if (payload.sessionId !== owner) throw new Error('Unexpected owner')
@@ -89,6 +89,7 @@ try {
           getSnapshot: () => ({ sessionId: owner }), isTabEnabled: () => true,
           openTab(_seed, scope) {
             opens++
+            document.getElementById('sidebar').hidden = false
             const state = { activePane: 'right', splits: { kind: 'leaf', id: 'right', tabs: [] }, bottomSplits: { kind: 'leaf', id: 'bottom', tabs: [] }, floats: [] }
             if (descriptor.createTab(state).patch.panelOpen !== true) throw new Error('Panel was not revealed')
             sideRoot.render(R.createElement(descriptor.component, { scope, visible: true }))
@@ -98,7 +99,14 @@ try {
       },
       detach() { bridgeDispose?.(); bridgeDispose = null },
       opens: () => opens,
-      language(value) { language = value; render() },
+      visibility(value) {
+        document.getElementById('sidebar').hidden = !value
+        sideRoot.render(R.createElement(descriptor.component, { scope: { sessionId: owner }, visible: value }))
+      },
+      language(value) {
+        language = value; render()
+        if (descriptor) sideRoot.render(R.createElement(descriptor.component, { scope: { sessionId: owner }, visible: !document.getElementById('sidebar').hidden }))
+      },
       cleanup() { bridgeDispose?.(); root.unmount(); sideRoot.unmount(); disposers.reverse().forEach(dispose => dispose()) },
     }
     render()
@@ -115,7 +123,16 @@ try {
   }), true, 'sidebar rail cannot cover dialog close')
   await page.keyboard.press('Tab')
   assert.equal(await page.evaluate(() => document.querySelector('dialog').contains(document.activeElement)), true, 'focus remains in modal')
-  await page.getByText('Notifications', { exact: true }).click()
+  assert.equal(await dialog.locator('.dsh-cron-owner').isVisible(), true, 'fallback owner stays visible')
+  assert.equal(await dialog.locator('.dsh-cron-drawerTitle').count(), 1, 'fallback retains its own title')
+  const fallbackSettings = dialog.locator('.dsh-cron-settings > summary')
+  await fallbackSettings.click()
+  await page.getByRole('button', { name: 'Sound', exact: true }).focus()
+  await page.keyboard.press('Escape')
+  assert.equal(await dialog.evaluate(element => element.matches(':modal')), true, 'settings Escape must not dismiss modal')
+  assert.equal(await fallbackSettings.evaluate(el => el === document.activeElement), true, 'settings Escape restores summary focus')
+  assert.equal(await dialog.locator('.dsh-cron-settings').evaluate(el => el.open), false)
+  await fallbackSettings.click()
   await page.getByRole('button', { name: 'Test notification', exact: true }).click()
   const toast = page.locator('dialog .dsh-cron-toast')
   await toast.waitFor({ state: 'visible' })
@@ -137,16 +154,68 @@ try {
   await trigger.click()
   await page.locator('.dsh-cron-sidebarPanel').waitFor({ state: 'visible' })
   assert.equal(await dialog.count(), 0, 'sidebar mode has no modal')
+  const panel = page.locator('.dsh-cron-sidebarPanel')
+  assert.equal(await panel.locator('.dsh-cron-drawerHead').count(), 0, 'no repeated embedded heading row')
+  assert.equal(await panel.locator('.dsh-cron-drawerTitle').count(), 0, 'outer tab supplies the only visible title')
+  assert.equal(await panel.locator('.dsh-cron-owner').isVisible(), false, 'UUID hidden at rest')
+  assert.equal(await trigger.locator('.dsh-cron-triggerLabel').count(), 0, 'visible sidebar uses icon-only entry')
+  assert.equal(await trigger.getAttribute('aria-expanded'), 'true')
+  const toolbarBox = await panel.locator('.dsh-cron-toolbar').boundingBox()
+  assert.ok(toolbarBox.height <= 52, 'embedded chrome fits one compact row')
+  for (const button of await panel.locator('.dsh-cron-tabs > button').all()) {
+    assert.ok((await button.boundingBox()).width < 150, 'view buttons do not stretch across the whole pane')
+  }
+  const settingsSummary = panel.locator('.dsh-cron-settings > summary')
+  await settingsSummary.click()
+  assert.equal(await panel.locator('.dsh-cron-owner').isVisible(), true, 'full owner remains discoverable in settings')
+  assert.equal(await panel.locator('.dsh-cron-owner').innerText(), 'Session: demo-session-00000000-1111-2222-3333-444444444444')
   await page.getByRole('button', { name: 'Conversation action', exact: true }).click()
+  assert.equal(await panel.locator('.dsh-cron-settings').evaluate(el => el.open), false, 'outside pointer closes menu')
   await trigger.click()
   assert.equal(await page.locator('.dsh-cron-sidebarPanel').count(), 1, 'one sidebar pane')
   assert.equal(await page.evaluate(() => window.fixture.opens()), 2, 'repeat entry focuses sidebar through service')
+  await settingsSummary.click()
+  await page.evaluate(() => window.fixture.visibility(false))
+  await trigger.locator('.dsh-cron-triggerLabel').waitFor({ state: 'visible' })
+  assert.equal(await panel.locator('.dsh-cron-settings').evaluate(el => el.open), false, 'hiding pane closes disclosure')
+  await trigger.click()
+  await panel.waitFor({ state: 'visible' })
+  assert.equal(await trigger.locator('.dsh-cron-triggerLabel').count(), 0, 'reopening safely returns compact entry')
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.screenshot({ path: join(artifacts, 'sidebar-dark.png') })
   await page.setViewportSize({ width: 360, height: 740 })
   await page.locator('.dsh-cron-settings > summary').click()
   assert.equal(await page.locator('.dsh-cron-sidebarPanel').evaluate(element => element.scrollWidth <= element.clientWidth), true, 'narrow pane does not overflow')
+  const assertMenuFits = async () => {
+    const host = await panel.boundingBox()
+    const menu = await panel.locator('.dsh-cron-settingsBody').boundingBox()
+    assert.ok(menu.x >= host.x && menu.x + menu.width <= host.x + host.width + 1, 'settings width stays in host pane')
+    assert.ok(menu.y >= host.y && menu.y + menu.height <= host.y + host.height + 1, 'settings is not vertically clipped')
+  }
+  await assertMenuFits()
+  await panel.locator('.dsh-cron-settingsBody button').last().focus()
+  await page.keyboard.press('Escape')
+  await page.locator('#sidebar').evaluate(el => { el.style.width = '240px'; el.style.height = '200px'; el.style.bottom = 'auto' })
+  await settingsSummary.click()
+  await assertMenuFits()
+  // A short split/float must scroll INSIDE settings rather than clip controls.
+  await page.locator('#sidebar').evaluate(el => { el.style.height = '140px' })
+  for (const language of ['en', 'zh']) {
+    await page.evaluate(value => window.fixture.language(value), language)
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    await assertMenuFits()
+    const lastControl = panel.locator('.dsh-cron-settingsBody button').last()
+    await lastControl.focus()
+    assert.equal(await lastControl.evaluate(el => {
+      const box = el.getBoundingClientRect()
+      return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === el
+    }), true, 'last settings control is keyboard-reachable, not clipped by short host')
+  }
+  await page.keyboard.press('Escape')
+  await page.evaluate(() => window.fixture.language('en'))
+  await page.locator('#sidebar').evaluate(el => { el.style.removeProperty('width'); el.style.removeProperty('height'); el.style.removeProperty('bottom') })
   await page.getByRole('button', { name: 'Tasks', exact: true }).click()
+  assert.equal(await page.getByRole('button', { name: 'Tasks', exact: true }).getAttribute('aria-pressed'), 'true')
   await page.getByRole('button', { name: 'Edit', exact: true }).first().click()
   assert.equal(await page.locator('.dsh-cron-body').evaluate(element => element.scrollWidth <= element.clientWidth), true, 'narrow editor has no horizontal overflow')
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()

@@ -474,7 +474,7 @@ function EditTaskForm({ t, task, sessionId, onDone }: { t: T; task: TaskView; se
   )
 }
 
-function CronPanel({ t, tab, setTab, sessionId, visible }: { t: T; tab: DrawerTab; setTab: (tab: DrawerTab) => void; sessionId: string; visible: boolean }) {
+function CronPanel({ t, tab, sessionId, visible }: { t: T; tab: DrawerTab; sessionId: string; visible: boolean }) {
   const [tasks, setTasks] = useState<TaskView[]>([])
   const [records, setRecords] = useState<RunRecord[]>([])
   const [error, setError] = useState('')
@@ -519,22 +519,6 @@ function CronPanel({ t, tab, setTab, sessionId, visible }: { t: T; tab: DrawerTa
 
   return (
     <>
-      <div className={styles.tabs}>
-        <button
-          type="button"
-          className={tab === 'tasks' ? styles.tabActive : styles.tab}
-          onClick={() => setTab('tasks')}
-        >
-          {t('tab.tasks')}
-        </button>
-        <button
-          type="button"
-          className={tab === 'history' ? styles.tabActive : styles.tab}
-          onClick={() => setTab('history')}
-        >
-          {t('tab.history')}
-        </button>
-      </div>
       {error ? <div className={styles.error}>{error}</div> : null}
       <div className={styles.body}>
         {tab === 'tasks' ? (
@@ -616,8 +600,68 @@ interface SlotProps {
   sessionId?: string
 }
 
-function PanelHeader({ t, sessionId, onClose }: { t: T; sessionId: string; onClose?: () => void }) {
+function PanelHeader({ t, onClose }: { t: T; onClose: () => void }) {
+  return (
+    <div className={styles.drawerHead}>
+      <span className={styles.drawerTitle}>{t('trigger.aria')}</span>
+      <span className={styles.headSpacer} />
+      <button type="button" className={styles.drawerClose} aria-label={t('drawer.close')} onClick={onClose}>×</button>
+    </div>
+  )
+}
+
+function PanelSettings({ t, sessionId, visible, embedded }: { t: T; sessionId: string; visible: boolean; embedded: boolean }) {
   const { prefs: currentPrefs } = useDrawerState()
+  const ref = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    const details = ref.current!
+    // Native disclosure state must not survive a hidden pane or a new owner.
+    details.open = false
+    if (!visible) return
+    const close = () => { details.open = false }
+    const outsidePointer = (event: PointerEvent) => {
+      if (details.open && event.target instanceof Node && !details.contains(event.target)) {
+        // Avoid leaving focus in hidden controls when the outside target is not focusable.
+        if (details.contains(details.ownerDocument.activeElement)) details.querySelector('summary')?.focus()
+        close()
+      }
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !details.open || !(event.target instanceof Node) || !details.contains(event.target)) return
+      // Consume the first Escape before the native modal (or Sidebar) sees it.
+      event.preventDefault()
+      event.stopPropagation()
+      close()
+      details.querySelector('summary')?.focus()
+    }
+    const doc = details.ownerDocument
+    const toolbar = details.closest(`.${styles.toolbar}`)
+    const pane = details.closest(`.${styles.sidebarPanel}, .${styles.drawer}`)
+    const measure = () => {
+      if (!toolbar || !pane) return
+      const available = Math.max(0, pane.getBoundingClientRect().bottom - toolbar.getBoundingClientRect().bottom - 8)
+      details.style.setProperty('--dsh-cron-settings-height', `${available}px`)
+    }
+    // Observe only our own pane and toolbar: short bottom panes and wrapped
+    // toolbars must bound the disclosure just as narrow panes bound its width.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    if (pane) observer?.observe(pane)
+    if (toolbar) observer?.observe(toolbar)
+    measure()
+    details.addEventListener('toggle', measure)
+    doc.defaultView?.addEventListener('resize', measure)
+    doc.addEventListener('pointerdown', outsidePointer, true)
+    doc.addEventListener('keydown', escape, true)
+    return () => {
+      close()
+      observer?.disconnect()
+      details.style.removeProperty('--dsh-cron-settings-height')
+      details.removeEventListener('toggle', measure)
+      doc.defaultView?.removeEventListener('resize', measure)
+      doc.removeEventListener('pointerdown', outsidePointer, true)
+      doc.removeEventListener('keydown', escape, true)
+    }
+  }, [sessionId, visible])
   const testToast = () => notifyEvents([{
     kind: 'completed',
     record: {
@@ -634,18 +678,26 @@ function PanelHeader({ t, sessionId, onClose }: { t: T; sessionId: string; onClo
     if (Notification.permission === 'granted') setPref('system', true)
   }
   return (
-    <div className={styles.drawerHead}>
-      <span className={styles.drawerTitle}>{t('trigger.aria')}</span>
-      <details className={styles.settings}>
-        <summary className={styles.headText}>{t('prefs.title')}</summary>
-        <div className={styles.settingsBody}>
-          <button type="button" className={styles.headText} aria-pressed={currentPrefs.system} onClick={() => void toggleSystem()}>{t('prefs.systemShort')}</button>
-          <button type="button" className={styles.headText} aria-pressed={currentPrefs.sound} onClick={() => setPref('sound', !currentPrefs.sound)}>{t('prefs.soundShort')}</button>
+    <details ref={ref} className={styles.settings} onBlur={event => {
+      // Tab/Shift+Tab may leave freely; close without pulling focus back inside.
+      if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false
+    }}>
+      <summary aria-label={t('panel.settings')} title={t('panel.settings')}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+          <path d="m10 3-.5 2.5-2 1.2L5 6l-2 3.5L5 11v2l-2 1.5L5 18l2.5-.7 2 1.2L10 21h4l.5-2.5 2-1.2 2.5.7 2-3.5-2-1.5v-2l2-1.5L19 6l-2.5.7-2-1.2L14 3Z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      </summary>
+      <div className={styles.settingsBody}>
+        {embedded ? <div className={styles.owner}>{t('panel.owner', { id: sessionId })}</div> : null}
+        <h3 className={styles.settingsTitle}>{t('prefs.title')}</h3>
+        <div className={styles.settingsControls}>
+          <button type="button" className={styles.headText} title={t('prefs.system')} aria-pressed={currentPrefs.system} onClick={() => void toggleSystem()}>{t('prefs.systemShort')}</button>
+          <button type="button" className={styles.headText} title={t('prefs.sound')} aria-pressed={currentPrefs.sound} onClick={() => setPref('sound', !currentPrefs.sound)}>{t('prefs.soundShort')}</button>
           <button type="button" className={styles.headText} onClick={testToast}>{t('drawer.test')}</button>
         </div>
-      </details>
-      {onClose ? <button type="button" className={styles.drawerClose} aria-label={t('drawer.close')} onClick={onClose}>×</button> : null}
-    </div>
+      </div>
+    </details>
   )
 }
 
@@ -654,9 +706,20 @@ function PanelContent({ t, sessionId, visible, onClose }: { t: T; sessionId: str
   const view = sessionView(sessionId)
   return (
     <>
-      <PanelHeader t={t} sessionId={sessionId} onClose={onClose} />
-      <div className={styles.owner} title={sessionId}>{t('panel.owner', { id: sessionId })}</div>
-      <CronPanel key={sessionId} t={t} tab={view.tab} setTab={tab => setDrawerTab(tab, sessionId)} sessionId={sessionId} visible={visible} />
+      {onClose ? <>
+        <PanelHeader t={t} onClose={onClose} />
+        <div className={styles.owner}>{t('panel.owner', { id: sessionId })}</div>
+      </> : null}
+      <div className={styles.toolbar}>
+        <div className={styles.tabs} role="group" aria-label={t('panel.views')}>
+          <button type="button" className={view.tab === 'tasks' ? styles.tabActive : styles.tab}
+            aria-pressed={view.tab === 'tasks'} onClick={() => setDrawerTab('tasks', sessionId)}>{t('tab.tasks')}</button>
+          <button type="button" className={view.tab === 'history' ? styles.tabActive : styles.tab}
+            aria-pressed={view.tab === 'history'} onClick={() => setDrawerTab('history', sessionId)}>{t('tab.history')}</button>
+        </div>
+        <PanelSettings key={sessionId} t={t} sessionId={sessionId} visible={visible} embedded={!onClose} />
+      </div>
+      <CronPanel key={sessionId} t={t} tab={view.tab} sessionId={sessionId} visible={visible} />
     </>
   )
 }
@@ -720,7 +783,8 @@ function CronAction({ t, sessionId }: SlotProps) {
   const tr = t ?? fallbackT
   const state = useDrawerState()
   const { count, unread, visible } = sessionView(sessionId ?? null)
-  const open = visible || (state.open && state.drawerSessionId === sessionId)
+  const compact = visible && sidebar !== null
+  const open = compact || (state.open && state.drawerSessionId === sessionId)
   useEffect(() => {
     setActiveSession(sessionId ?? null)
     return () => { if (activeSessionId === sessionId) setActiveSession(null) }
@@ -729,7 +793,7 @@ function CronAction({ t, sessionId }: SlotProps) {
   return (
     <button
       type="button"
-      className={open ? styles.triggerActive : styles.trigger}
+      className={`${open ? styles.triggerActive : styles.trigger}${compact ? ` ${styles.triggerCompact}` : ''}`}
       aria-expanded={open}
       aria-label={tr('trigger.aria')}
       title={tr('trigger.aria')}
@@ -740,9 +804,16 @@ function CronAction({ t, sessionId }: SlotProps) {
         else openDrawer(sessionView(sessionId).tab, sessionId)
       }}
     >
-      <span className={styles.triggerLabel}>{tr('trigger.aria')}</span>
-      {count > 0 ? <span className={styles.count}>{count}</span> : null}
-      {unread > 0 ? <span className={styles.unreadBadge}>{unread}</span> : null}
+      {compact ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      ) : <>
+        <span className={styles.triggerLabel}>{tr('trigger.aria')}</span>
+        {count > 0 ? <span className={styles.count}>{count}</span> : null}
+        {unread > 0 ? <span className={styles.unreadBadge}>{unread}</span> : null}
+      </>}
     </button>
   )
 }
