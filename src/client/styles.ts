@@ -3,10 +3,8 @@
 
 export const styles = {
   trigger: 'dsh-cron-trigger',
-  triggerLabel: 'dsh-cron-triggerLabel',
   triggerCompact: 'dsh-cron-triggerCompact',
   triggerActive: 'dsh-cron-trigger dsh-cron-triggerActive',
-  count: 'dsh-cron-count',
   sidebarPanel: 'dsh-cron-sidebarPanel',
   settings: 'dsh-cron-settings',
   settingsBody: 'dsh-cron-settingsBody',
@@ -98,10 +96,9 @@ export const css = `
 }
 .dsh-cron-trigger:hover, .dsh-cron-trigger:focus-visible { color: var(--dsh-cron-label-secondary); }
 .dsh-cron-triggerActive { color: var(--dsh-cron-label-primary); background: var(--dsh-cron-bg-interactive); }
-.dsh-cron-triggerLabel { font-size: 12px; }
-.dsh-cron-triggerCompact { width: 28px; padding: 6px; justify-content: center; }
+/* Stable hit target in every view; the unread badge is absolutely positioned. */
+.dsh-cron-triggerCompact { box-sizing: border-box; width: 28px; min-width: 28px; height: 28px; padding: 6px; justify-content: center; }
 .dsh-cron-triggerCompact svg { flex: none; }
-.dsh-cron-count { margin: 0 2px; font-variant-numeric: tabular-nums; }
 
 /* Sidebar mode occupies its host pane, without a mask or viewport positioning. */
 .dsh-cron-sidebarPanel {

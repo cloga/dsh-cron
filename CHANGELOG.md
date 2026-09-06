@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6
+
+- Use the same fixed-size clock header entry in every state, including other Sidebar tabs, collapsed/absent Sidebar, and standalone fallback; stop switching between icon and text.
+- Preserve the accessible name and real expanded state; expose enabled/unread counts in a localized tooltip and accessible description, with an absolute unread badge capped visually at 99+.
+- Cover persistent entry identity, disabled/no-owner behavior, unread acknowledgement, English/Chinese labels and constant browser dimensions across transitions.
+
 ## 0.4.5
 
 - Remove the repeated title and always-visible Session ID from embedded Cron panels; use the host tab title and one compact Tasks/History/settings toolbar.
