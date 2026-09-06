@@ -21,7 +21,7 @@ $env:DSH_CHROMIUM_EXECUTABLE = 'C:\Program Files (x86)\Microsoft\Edge\Applicatio
 node docs/capture-screenshots.mjs
 ```
 
-脚本不安装或更新依赖，不构建客户端。它要求工作树的 `lib/client.js` 与 HEAD 提交中的字节完全一致，且 package 版本为 0.4.4。成功运行覆盖本目录三张 PNG 和本说明；发生失败时仍通过 `finally` 关闭上下文与浏览器。
+脚本不安装或更新依赖，不构建客户端。它要求工作树的 `lib/client.js` 与 HEAD 提交中的字节完全一致，且 package 版本为 0.4.5。成功运行覆盖本目录三张 PNG 和本说明；发生失败时仍通过 `finally` 关闭上下文与浏览器。
 
 ## 真实组件与夹具边界
 
@@ -29,15 +29,15 @@ node docs/capture-screenshots.mjs
 - **夹具**：最小 ModuleLoader / Cordis slots / locale / effect 接线；Better Sidebar 0.18.0 的公开服务形状；会话头部、侧栏页签与外围说明外壳。页签标题来自真实 Cron descriptor，面板经真实头部按钮及可选服务路径打开；未加载 Better Sidebar 自身 UI。
 - **主题**：演示外壳仅提供 Cron 已支持的公开 DSH CSS theme tokens，配合系统字体与亮/暗 color-scheme；颜色是中性演示值，不声称逐像素复刻某个 DSH 安装主题。
 - **数据**：固定 `demo-session` 会话，四个虚构短 ID 任务（每日 / 30 分钟 / 2 小时间隔，含已暂停项），五条已完成/失败示例记录。所有文案为原创示例，无真实用户、会话、文件、凭据或任务数据。
-- **API**：只允许同一示例 owner 的 `/cron/api/list` 与 `/cron/api/history` 内存响应；其他调用直接报错。未调用 run/add/update/toggle/remove。通知设置仅展开，没有发送通知。
+- **API**：只允许同一示例 owner 的 `/cron/api/list` 与 `/cron/api/history` 内存响应；其他调用直接报错。未调用 run/add/update/toggle/remove。设置菜单默认收起，没有发送通知或变更偏好。
 - **隔离**：全新非持久化浏览器上下文；offline 模式、禁用 service worker、兜底中止所有网络请求，并断言零网络请求。仅 `setContent` 与本地脚本注入，无服务器、生产 GUI/浏览器 profile/DSH_HOME 访问、真实任务创建或模型调用。
 
 ## 构建来源
 
-- Package：`dsh-cron@0.4.4`
+- Package：`dsh-cron@0.4.5`
 - 已提交 bundle：`lib/client.js`
-- Bundle 最近修改提交：`8c2b75704a510528085e093dfb15d9ba2aee3313`
-- Bundle SHA-256：`acefdb5d0a5e9aef9a2039853116042fabdd35def8dca88b529d7b38ce8dc553`
+- Bundle 最近修改提交：`b1bf78a9ae76c4a7692ac1ecfa42925d1f2bfddc`
+- Bundle SHA-256：`2f3dee90f854458bbbd25ae6179b75baf44610e28379a08d3fee9ddf76558ae0`
 - React：`18.3.1`；ReactDOM：`18.3.1`
 - Playwright：`1.62.1`；实际浏览器版本：`152.0.4191.66`
 - 选择：`msedge`
@@ -50,7 +50,7 @@ node docs/capture-screenshots.mjs
 | --- | --- | --- |
 | `sidebar-tasks-dark.png` | 暗色侧栏任务页，四个代表性任务 | 2560 × 1520 |
 | `sidebar-history-light.png` | 亮色侧栏执行记录，完成/失败及摘要耗时 | 2560 × 1520 |
-| `standalone-panel.png` | 未注入 Better Sidebar 服务时的真实独立模态面板，展开通知设置 | 2560 × 1520 |
+| `standalone-panel.png` | 未注入 Better Sidebar 服务时的真实独立模态面板，保留标题和完整会话归属 | 2560 × 1520 |
 
 ## 验证与限制
 
