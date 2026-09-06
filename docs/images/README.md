@@ -21,7 +21,7 @@ $env:DSH_CHROMIUM_EXECUTABLE = 'C:\Program Files (x86)\Microsoft\Edge\Applicatio
 node docs/capture-screenshots.mjs
 ```
 
-脚本不安装或更新依赖，不构建客户端。它要求工作树的 `lib/client.js` 与 HEAD 提交中的字节完全一致，且 package 版本为 0.4.5。成功运行覆盖本目录三张 PNG 和本说明；发生失败时仍通过 `finally` 关闭上下文与浏览器。
+脚本不安装或更新依赖，不构建客户端。它要求工作树的 `lib/client.js` 与 HEAD 提交中的字节完全一致，且 package 版本为 0.4.6。成功运行覆盖本目录三张 PNG 和本说明；发生失败时仍通过 `finally` 关闭上下文与浏览器。
 
 ## 真实组件与夹具边界
 
@@ -34,10 +34,10 @@ node docs/capture-screenshots.mjs
 
 ## 构建来源
 
-- Package：`dsh-cron@0.4.5`
+- Package：`dsh-cron@0.4.6`
 - 已提交 bundle：`lib/client.js`
-- Bundle 最近修改提交：`b1bf78a9ae76c4a7692ac1ecfa42925d1f2bfddc`
-- Bundle SHA-256：`2f3dee90f854458bbbd25ae6179b75baf44610e28379a08d3fee9ddf76558ae0`
+- Bundle 最近修改提交：`a0bb243fc514a8bc117ed87015f4e78057c8ee93`
+- Bundle SHA-256：`72b55390cc967179847239dc7bef3553deae8ceaefa2093d39f5e98abb514468`
 - React：`18.3.1`；ReactDOM：`18.3.1`
 - Playwright：`1.62.1`；实际浏览器版本：`152.0.4191.66`
 - 选择：`msedge`
