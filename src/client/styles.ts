@@ -4,11 +4,15 @@
 export const styles = {
   trigger: 'dsh-cron-trigger',
   triggerLabel: 'dsh-cron-triggerLabel',
+  triggerCompact: 'dsh-cron-triggerCompact',
   triggerActive: 'dsh-cron-trigger dsh-cron-triggerActive',
   count: 'dsh-cron-count',
   sidebarPanel: 'dsh-cron-sidebarPanel',
   settings: 'dsh-cron-settings',
   settingsBody: 'dsh-cron-settingsBody',
+  settingsTitle: 'dsh-cron-settingsTitle',
+  settingsControls: 'dsh-cron-settingsControls',
+  toolbar: 'dsh-cron-toolbar',
   owner: 'dsh-cron-owner',
   drawer: 'dsh-cron-drawer',
   drawerHead: 'dsh-cron-drawerHead',
@@ -95,6 +99,8 @@ export const css = `
 .dsh-cron-trigger:hover, .dsh-cron-trigger:focus-visible { color: var(--dsh-cron-label-secondary); }
 .dsh-cron-triggerActive { color: var(--dsh-cron-label-primary); background: var(--dsh-cron-bg-interactive); }
 .dsh-cron-triggerLabel { font-size: 12px; }
+.dsh-cron-triggerCompact { width: 28px; padding: 6px; justify-content: center; }
+.dsh-cron-triggerCompact svg { flex: none; }
 .dsh-cron-count { margin: 0 2px; font-variant-numeric: tabular-nums; }
 
 /* Sidebar mode occupies its host pane, without a mask or viewport positioning. */
@@ -114,12 +120,37 @@ export const css = `
 }
 .dsh-cron-drawer[open] { display: flex; flex-direction: column; }
 .dsh-cron-drawer::backdrop { background: rgb(0 0 0 / 42%); }
-.dsh-cron-settings { margin-left: auto; min-width: 0; }
-.dsh-cron-settings > summary { list-style: none; }
+/* The toolbar is the dropdown's local anchor, so narrow panes bound both edges. */
+.dsh-cron-toolbar {
+  position: relative; z-index: 1; flex: none; display: flex; align-items: center; gap: 6px;
+  min-width: 0; padding: 6px 8px; border-bottom: 1px solid var(--dsh-cron-border);
+}
+.dsh-cron-settings { position: static; margin-left: auto; flex: none; }
+.dsh-cron-settings > summary {
+  list-style: none; display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px; cursor: pointer;
+  color: var(--dsh-cron-label-tertiary);
+}
 .dsh-cron-settings > summary::-webkit-details-marker { display: none; }
-.dsh-cron-settingsBody { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 6px; }
+.dsh-cron-settings > summary:hover, .dsh-cron-settings[open] > summary {
+  color: var(--dsh-cron-label-primary); background: var(--dsh-cron-bg-interactive);
+}
+.dsh-cron-settings > summary:focus-visible, .dsh-cron-tab:focus-visible {
+  outline: 2px solid var(--dsh-cron-label-secondary); outline-offset: 1px;
+}
+.dsh-cron-settingsBody {
+  position: absolute; top: calc(100% - 2px); right: 8px; box-sizing: border-box;
+  width: 320px; max-width: calc(100% - 16px);
+  max-height: min(320px, 60dvh, var(--dsh-cron-settings-height, 60dvh)); overflow: auto;
+  display: flex; flex-direction: column; gap: 8px; padding: 12px;
+  background: var(--dsh-cron-bg-surface); border: 1px solid var(--dsh-cron-border);
+  border-radius: 8px; box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+}
+.dsh-cron-settingsTitle { flex: none; margin: 0; font-size: 12px; font-weight: 600; }
+.dsh-cron-settingsControls { flex: none; display: flex; flex-wrap: wrap; gap: 4px; }
 .dsh-cron-settingsBody [aria-pressed="true"] { background: var(--dsh-cron-bg-interactive); font-weight: 600; }
 .dsh-cron-owner { flex: none; padding: 4px 12px; font-size: 11px; color: var(--dsh-cron-label-tertiary); overflow-wrap: anywhere; }
+.dsh-cron-settingsBody .dsh-cron-owner { padding: 0; }
 .dsh-cron-drawerHead {
   flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   padding: 10px 12px; border-bottom: 1px solid var(--dsh-cron-border);
@@ -143,9 +174,9 @@ export const css = `
 }
 
 /* panel body */
-.dsh-cron-tabs { flex: none; display: flex; gap: 2px; padding: 8px 10px 6px; border-bottom: 1px solid var(--dsh-cron-border); }
+.dsh-cron-tabs { min-width: 0; display: flex; flex-wrap: wrap; gap: 2px; }
 .dsh-cron-tab {
-  flex: 1; border: 0; background: 0; cursor: pointer; padding: 6px 0; font-size: 12px;
+  flex: none; border: 0; background: 0; cursor: pointer; padding: 6px 10px; font-size: 12px;
   color: var(--dsh-cron-label-tertiary); border-radius: 6px;
 }
 .dsh-cron-tab:hover { color: var(--dsh-cron-label-secondary); }

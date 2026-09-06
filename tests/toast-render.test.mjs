@@ -5,7 +5,21 @@ import assert from 'node:assert/strict'
 import { JSDOM } from 'jsdom'
 
 const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div><div id="sidebar"></div></body></html>', { url: 'http://127.0.0.1:3080/', pretendToBeVisual: true })
-Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, KeyboardEvent: dom.window.KeyboardEvent, IS_REACT_ACT_ENVIRONMENT: true })
+Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Node: dom.window.Node, KeyboardEvent: dom.window.KeyboardEvent, IS_REACT_ACT_ENVIRONMENT: true })
+// Track settings-only observers/listeners so disclosure lifecycle cannot leak.
+const liveObservers = new Set()
+const originalObserver = globalThis.ResizeObserver
+class MockResizeObserver {
+  constructor() { liveObservers.add(this) }
+  observe() {}
+  disconnect() { liveObservers.delete(this) }
+}
+globalThis.ResizeObserver = MockResizeObserver
+const trackedListeners = { pointerdown: new Set(), keydown: new Set() }
+const addDocumentListener = document.addEventListener.bind(document)
+const removeDocumentListener = document.removeEventListener.bind(document)
+document.addEventListener = (type, listener, options) => { trackedListeners[type]?.add(listener); addDocumentListener(type, listener, options) }
+document.removeEventListener = (type, listener, options) => { trackedListeners[type]?.delete(listener); removeDocumentListener(type, listener, options) }
 // jsdom does not implement the top-layer dialog API.
 dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true }
 dom.window.HTMLDialogElement.prototype.close = function () { this.open = false }
@@ -71,6 +85,22 @@ const findButton = (label, scope = document) => [...scope.querySelectorAll('butt
 const click = async button => { assert.ok(button, 'button exists'); await act(async () => button.click()) }
 const cancel = async () => act(async () => document.querySelector('dialog').dispatchEvent(new dom.window.Event('cancel', { cancelable: true })))
 const poll = async ms => act(async () => { for (const timer of [...intervals.values()]) if (timer.ms === ms) await timer.fn() })
+const openSettings = async (scope = document.querySelector('dialog') ?? document.querySelector('.dsh-cron-sidebarPanel')) => {
+  const details = scope.querySelector('.dsh-cron-settings')
+  assert.ok(details)
+  if (!details.open) await click(details.querySelector('summary'))
+  assert.ok(details.open)
+  return details
+}
+const escapeSettings = async details => {
+  const target = details.querySelector('button')
+  target.focus()
+  const event = new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+  await act(async () => target.dispatchEvent(event))
+  assert.equal(details.open, false)
+  assert.ok(event.defaultPrevented, 'settings handles Escape before dialog cancellation')
+  assert.equal(document.activeElement, details.querySelector('summary'), 'Escape restores disclosure focus')
+}
 
 await render()
 assert.equal(document.querySelector('dialog'), null, 'no hidden focusable fallback panel')
@@ -80,11 +110,19 @@ await click(findButton('trigger.aria'))
 assert.ok(document.querySelector('dialog[open]'), 'standalone fallback opens')
 assert.ok(document.querySelector('dialog').textContent.includes('prompt-A'))
 assert.equal(intervals.size, 2, 'only visible panel polls')
+assert.equal(document.querySelectorAll('dialog .dsh-cron-drawerTitle').length, 1, 'fallback retains its title')
+assert.equal(document.querySelectorAll('dialog .dsh-cron-owner').length, 1, 'fallback has one explicit owner')
+assert.ok(document.querySelector('dialog .dsh-cron-owner').textContent.includes('A'))
+const fallbackSettings = await openSettings()
+await escapeSettings(fallbackSettings)
+assert.ok(document.querySelector('dialog[open]'), 'closing settings must not close fallback')
+await openSettings()
 await click(findButton('drawer.test'))
 assert.ok(document.querySelector('.dsh-cron-toast'), 'test notification produces a real toast')
 assert.ok(document.querySelector('dialog .dsh-cron-toast'), 'modal toast stays within the active top-layer context')
 await click(document.querySelector('.dsh-cron-toast'))
 assert.ok(document.querySelector('dialog').textContent.includes('result-A'), 'toast works without closing the modal first')
+await openSettings()
 await click(findButton('drawer.test'))
 await cancel()
 assert.equal(document.querySelector('dialog'), null)
@@ -154,6 +192,31 @@ assert.equal(bottom.bottomOpen, false, 'adapter does not mutate source state')
 await click(findButton('trigger.aria'))
 assert.equal(document.querySelector('dialog'), null, 'sidebar mode has no independent dialog/mask')
 assert.ok(document.querySelector('.dsh-cron-sidebarPanel'))
+const embedded = document.querySelector('.dsh-cron-sidebarPanel')
+assert.equal(embedded.querySelector('.dsh-cron-drawerHead'), null, 'host tab supplies title; no inner header')
+assert.equal(embedded.querySelector('.dsh-cron-drawerTitle'), null, 'no repeated visible panel title')
+assert.equal(embedded.querySelectorAll('.dsh-cron-toolbar').length, 1, 'one compact toolbar')
+assert.equal(embedded.querySelectorAll('.dsh-cron-owner').length, 1, 'owner remains discoverable once')
+assert.ok(embedded.querySelector('.dsh-cron-owner').closest('details'), 'embedded owner is inside closed settings')
+assert.equal(embedded.querySelector('details').open, false, 'Session UUID is not permanently displayed')
+const headerEntry = document.querySelector('#root .dsh-cron-trigger')
+assert.ok(headerEntry.classList.contains('dsh-cron-triggerCompact'), 'visible owner sidebar uses compact entry')
+assert.equal(headerEntry.getAttribute('aria-label'), 'trigger.aria', 'icon keeps accessible name')
+assert.equal(headerEntry.getAttribute('aria-expanded'), 'true')
+assert.equal(headerEntry.querySelector('.dsh-cron-count'), null, 'compact entry does not repeat count')
+const settings = await openSettings(embedded)
+assert.ok(settings.querySelector('.dsh-cron-owner').textContent.includes('A'))
+const sound = findButton('prefs.soundShort', settings)
+const wasPressed = sound.getAttribute('aria-pressed')
+await click(sound)
+assert.notEqual(sound.getAttribute('aria-pressed'), wasPressed, 'preference control still works')
+await click(sound)
+await escapeSettings(settings)
+await openSettings(embedded)
+await act(async () => document.body.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true })))
+assert.equal(settings.open, false, 'outside pointer dismisses settings')
+await click(headerEntry)
+assert.equal(document.querySelectorAll('.dsh-cron-sidebarPanel').length, 1, 'compact entry still reveals same tab')
 assert.deepEqual(opens.at(-1), { seed: { type: TAB }, scope: { sessionId: 'A' } })
 await click(findButton('tab.tasks'))
 await click(findButton('action.run'))
@@ -175,10 +238,15 @@ assert.equal(requests.filter(request => ['list', 'history'].includes(request.met
 await act(async () => sideRoot.render(react.createElement(descriptor.component, { scope: { sessionId: 'A' }, visible: true })))
 console.log('✓ optional service arrival, reveal destinations, all mutation owners and late-mutation cleanup')
 
+await openSettings(document.querySelector('.dsh-cron-sidebarPanel'))
 await act(async () => sideRoot.render(react.createElement(descriptor.component, { scope: { sessionId: 'A' }, visible: false })))
+assert.equal(document.querySelector('.dsh-cron-settings').open, false, 'hidden panel dismisses settings')
+assert.equal(document.querySelector('#root .dsh-cron-triggerCompact'), null, 'hidden sidebar restores discoverable text entry')
+assert.ok(document.querySelector('#root .dsh-cron-triggerLabel'))
 assert.equal(intervals.size, 1, 'inactive sidebar tab pauses panel polling')
 await act(async () => sideRoot.render(react.createElement(descriptor.component, { scope: { sessionId: 'A' }, visible: true })))
 assert.equal(intervals.size, 2)
+await openSettings()
 await click(findButton('drawer.test')) // toast belongs to A, then switch session
 serviceOwner = 'B'
 await render('B')
@@ -187,6 +255,8 @@ assert.ok(document.querySelector('.dsh-cron-sidebarPanel').textContent.includes(
 assert.ok(!document.querySelector('.dsh-cron-sidebarPanel').textContent.includes('prompt-A'))
 await click(document.querySelector('.dsh-cron-toast'))
 assert.ok(document.querySelector('dialog').textContent.includes('result-A'), 'old-session notification stays pinned to A')
+assert.ok(document.querySelector('dialog .dsh-cron-owner').textContent.includes('A'), 'cross-session fallback still visibly identifies original owner')
+assert.equal(document.querySelector('dialog .dsh-cron-owner').closest('details'), null, 'cross-session owner is never tucked inside settings')
 assert.ok(document.querySelector('.dsh-cron-sidebarPanel').textContent.includes('prompt-B'), 'old notification does not replace B state')
 await cancel()
 console.log('✓ session-isolated panel state, hidden polling and old-session toast fallback')
@@ -236,6 +306,12 @@ await act(async () => {
   for (const dispose of cleanup.reverse()) dispose()
 })
 assert.equal(intervals.size, 0, 'all poll timers disposed')
+assert.equal(liveObservers.size, 0, 'all settings size observers disconnected')
+for (const [type, listeners] of Object.entries(trackedListeners)) assert.equal(listeners.size, 0, `${type} disclosure listeners disposed`)
+document.addEventListener = addDocumentListener
+document.removeEventListener = removeDocumentListener
+if (originalObserver === undefined) delete globalThis.ResizeObserver
+else globalThis.ResizeObserver = originalObserver
 assert.equal(document.querySelector('style[data-plugin="dsh-cron"]'), null, 'style disposed')
 globalThis.setInterval = originalInterval
 globalThis.clearInterval = originalClearInterval

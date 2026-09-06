@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.5
+
+- Remove the repeated title and always-visible Session ID from embedded Cron panels; use the host tab title and one compact Tasks/History/settings toolbar.
+- Keep the header entry mounted but show a named clock icon while its own Sidebar panel is visible; restore the text/count entry when hidden or unavailable.
+- Move embedded owner details and notification preferences into an accessible settings disclosure; retain the standalone modal title, close control and always-visible owner context.
+- Cover settings dismissal/focus, hidden pane/service transitions, narrow menus and unchanged per-Session operations; refresh documentation screenshots for the compact layout.
+
 ## 0.4.4
 
 - Add a project-level agent guide, architecture/test map, PR checklist, and evidence-based release completion contract.
