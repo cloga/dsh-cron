@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.7
+
+- Fix cold root Session resume on Core `0.1.5-alpha.1` and `0.1.5-alpha.2` (#30; alpha.1 tracking #29): unwrap `SessionHandle.read()` results carrying `{ eventState, events }`, while preserving Core 0.1.3 array reads and legacy `inspect()`.
+- Reject malformed handle/results and mismatched/non-root handle headers before resume; keep handle closure in `finally`, retain overdue retry and never fall back to another Session. Observe event values without mutating or transferring ownership.
+- Add exact peer entries for the two 0.1.5 alphas, exact-SHA declaration checks and source-backed JSONL handle-to-Cron regression tests with fake storage/agents; include all four source baselines in CI/release verification. Read-only `DSH_CORE_REF` mode certifies immutable blobs without modifying an existing Core checkout.
+- This backward-compatible patch does not claim full Core/JSONL migration, installed Profile, or live Host/UI compatibility from source checks or fixtures. No client behavior change.
+
 ## 0.4.6
 
 - Use the same fixed-size clock header entry in every state, including other Sidebar tabs, collapsed/absent Sidebar, and standalone fallback; stop switching between icon and text.
