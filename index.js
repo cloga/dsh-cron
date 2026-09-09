@@ -722,7 +722,7 @@ export function apply(ctx, config) {
     return preset
   }
 
-  /** Read one cold Session across the Core 0.1.1/0.1.2 inspect and 0.1.3 handle seams. */
+  /** Read one cold Session across legacy inspect and Core 0.1.3/0.1.5 handles. */
   async function inspectPersistedSession(sessionId) {
     const persistence = ctx.sessionPersistence
     const listed = await persistence.list()
@@ -736,9 +736,26 @@ export function apply(ctx, config) {
     if (typeof persistence.open === 'function') {
       const handle = await persistence.open(header.id, 'read')
       try {
-        return { meta: handle.header, events: await handle.read() }
+        if (typeof handle?.read !== 'function' || typeof handle?.close !== 'function') {
+          throw new TypeError('invalid session persistence read handle')
+        }
+        const meta = handle.header
+        if (String(meta?.id) !== sessionId || !meta?.cwd
+          || meta.origin === 'subagent' || Number(meta.delegationDepth ?? 0) > 0) {
+          throw new Error('invalid or non-root session persistence handle header')
+        }
+        const result = await handle.read()
+        // 0.1.3 returns an array; 0.1.5 returns an ownership-tagged slice.
+        // Cron only observes events to select model/preset; it never mutates or
+        // transfers their ownership to Session reconstruction (Core does that).
+        const events = Array.isArray(result) ? result : result?.events
+        if (!Array.isArray(events) || (!Array.isArray(result)
+          && result?.eventState !== 'detached' && result?.eventState !== 'shared-frozen')) {
+          throw new TypeError('invalid session persistence read result')
+        }
+        return { meta, events }
       } finally {
-        await handle.close()
+        if (typeof handle?.close === 'function') await handle.close()
       }
     }
     if (typeof persistence.inspect === 'function') return persistence.inspect(header.id)

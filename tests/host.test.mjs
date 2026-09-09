@@ -55,12 +55,16 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
   if (options.persistenceApi === 'handle') {
     sessionPersistence.open = async (id, access) => {
       persistenceOpens.push({ id, access })
+      if (Object.hasOwn(options, 'badHandle')) return options.badHandle
       return {
         header: inspected.meta,
         read: async () => {
           persistenceReads.push(id)
           if (options.persistenceReadError) throw options.persistenceReadError
-          return inspected.events
+          if (Object.hasOwn(options, 'readResult')) return options.readResult
+          return options.eventState
+            ? { eventState: options.eventState, events: inspected.events }
+            : inspected.events
         },
         close: async () => {
           persistenceCloses.push(id)
@@ -327,37 +331,89 @@ rmSync(interruptedDir, { recursive: true, force: true })
 console.log('✓ restart reconciles delivered/running history as interrupted')
 
 // --- strict fixed-session delivery: never fall back to another live root
-const strictDir = mkdtempSync(join(tmpdir(), 'dsh-cron-strict-'))
 const otherSession = { id: 'sess-other' }
 const otherFired = []
 const otherAgent = { id: 'other', session: otherSession, followup: (msg) => otherFired.push(msg) }
-const strict = makeCtx(join(strictDir, 'tasks.json'), join(strictDir, 'history.jsonl'), [
-  { id: 'strict', prompt: 'strict owner', at: past, sessionId: 'sess-owner' },
-], {
-  roots: [otherAgent],
-  inspected: {
-    meta: { id: 'sess-owner', cwd: 'C:\\workspace', agentPreset: 'standard' },
-    events: [
-      { type: 'request/header', data: { header: { config: { provider: 'saved-provider', model: 'saved-model' } } } },
-      { type: 'agent-preset/selected', data: { agentPreset: 'coding' } },
-    ],
-  },
-  persistenceApi: 'handle',
+for (const eventState of [undefined, 'detached', 'shared-frozen']) {
+  const strictDir = mkdtempSync(join(tmpdir(), 'dsh-cron-strict-'))
+  const strict = makeCtx(join(strictDir, 'tasks.json'), join(strictDir, 'history.jsonl'), [
+    { id: 'strict', prompt: 'strict owner', at: past, sessionId: 'sess-owner' },
+  ], {
+    roots: [otherAgent],
+    inspected: {
+      meta: { id: 'sess-owner', cwd: 'C:\\workspace', agentPreset: 'standard' },
+      events: [
+        { type: 'request/header', data: { header: { config: { provider: 'saved-provider', model: 'saved-model' } } } },
+        { type: 'agent-preset/selected', data: { agentPreset: 'coding' } },
+      ],
+    },
+    persistenceApi: 'handle',
+    eventState,
+  })
+  try {
+    await new Promise((r) => setTimeout(r, 2200))
+    assert.equal(otherFired.length, 0, 'unrelated live root never receives bound task')
+    assert.equal(strict.resumes.length, 1, 'cold owner resumed exactly once')
+    assert.equal(String(strict.resumes[0].resumeSessionId), 'sess-owner')
+    assert.deepEqual(strict.resumes[0].agentOptions, { provider: 'saved-provider', model: 'saved-model' })
+    assert.deepEqual(strict.mounts, ['coding'], 'latest persisted preset projection is mounted')
+    assert.deepEqual(strict.persistenceOpens, [{ id: 'sess-owner', access: 'read' }], 'snapshot.header id opens a read handle')
+    assert.deepEqual(strict.persistenceReads, ['sess-owner'], 'cold resume reads the handle')
+    assert.deepEqual(strict.persistenceCloses, ['sess-owner'], 'cold resume always closes the handle')
+    assert.deepEqual(strict.persistenceInspects, [], 'new handle API does not call legacy inspect')
+    assert.equal(strict.fired.length, 1, 'resumed owner receives task')
+    console.log(`✓ strict cold owner delivery and handle closure (${eventState ?? 'legacy array'})`)
+  } finally {
+    strict.disposers.forEach((d) => d?.())
+    rmSync(strictDir, { recursive: true, force: true })
+  }
+}
+
+// --- malformed results/handles fail closed, close usable handles and stay overdue.
+// Run these isolated owners together to avoid a timer wait per invalid shape.
+let malformedHandleCloses = 0
+const malformedClosableHandle = { close: async () => { malformedHandleCloses++ } }
+const invalidCases = [
+  ...[undefined, null, {}, 'events', { events: {} }, { events: [], eventState: 'unknown' },
+    { events: [], eventState: undefined }].map(readResult => ({ readResult })),
+  ...[null, {}, { read: async () => [] }, malformedClosableHandle].map(badHandle => ({ badHandle })),
+  ...[{ id: 'wrong-owner' }, { origin: 'subagent' }, { delegationDepth: 1 }].map(meta => ({
+    persistenceHeaders: [{ id: 'sess-invalid', cwd: 'C:\\workspace' }],
+    inspected: { meta: { id: 'sess-invalid', cwd: 'C:\\workspace', ...meta }, events: [] },
+  })),
+]
+const invalidRuns = invalidCases.map(options => {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-invalid-handle-'))
+  return { directory, run: makeCtx(join(directory, 'tasks.json'), join(directory, 'history.jsonl'), [
+    { id: 'invalid', prompt: 'must remain overdue', at: past, sessionId: 'sess-invalid' },
+  ], {
+    roots: [otherAgent], persistenceApi: 'handle',
+    inspected: { meta: { id: 'sess-invalid', cwd: 'C:\\workspace' }, events: [] },
+    ...options,
+  }), options }
 })
-await new Promise((r) => setTimeout(r, 4200))
-assert.equal(otherFired.length, 0, 'unrelated live root never receives bound task')
-assert.equal(strict.resumes.length, 1, 'cold owner resumed exactly once')
-assert.equal(String(strict.resumes[0].resumeSessionId), 'sess-owner')
-assert.deepEqual(strict.resumes[0].agentOptions, { provider: 'saved-provider', model: 'saved-model' })
-assert.deepEqual(strict.mounts, ['coding'], 'latest persisted preset projection is mounted')
-assert.deepEqual(strict.persistenceOpens, [{ id: 'sess-owner', access: 'read' }], 'snapshot.header id opens a read handle')
-assert.deepEqual(strict.persistenceReads, ['sess-owner'], 'cold resume reads the handle')
-assert.deepEqual(strict.persistenceCloses, ['sess-owner'], 'cold resume always closes the handle')
-assert.deepEqual(strict.persistenceInspects, [], 'new handle API does not call legacy inspect')
-assert.equal(strict.fired.length, 1, 'resumed owner receives task')
-console.log('✓ strict cold owner delivery uses snapshot.header and closes the read handle')
-strict.disposers.forEach((d) => d?.())
-rmSync(strictDir, { recursive: true, force: true })
+try {
+  await new Promise(resolve => setTimeout(resolve, 2200))
+  for (const { directory, run, options } of invalidRuns) {
+    assert.equal(run.resumes.length, 0, 'invalid persistence never resumes any owner')
+    assert.equal(run.fired.length, 0)
+    assert.equal(existsSync(join(directory, 'history.jsonl')), false)
+    assert.ok(run.persistenceOpens.length >= 2, 'invalid reads remain overdue and retry')
+    if (!Object.hasOwn(options, 'badHandle')) {
+      assert.equal(run.persistenceCloses.length, run.persistenceOpens.length, 'all acquired handles close')
+    } else if (options.badHandle === malformedClosableHandle) {
+      assert.equal(malformedHandleCloses, run.persistenceOpens.length, 'missing read still closes a usable handle')
+    }
+    assert.ok(run.warnings.some(warning => warning.includes('cannot inspect bound session')))
+  }
+  assert.equal(otherFired.length, 0, 'invalid reads never fall back to another root')
+} finally {
+  for (const { directory, run } of invalidRuns) {
+    run.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ malformed handle/results and changed owner/lineage fail closed and retry')
 
 // --- Core 0.1.1/0.1.2 fallback retains legacy list headers + inspect
 const legacyDir = mkdtempSync(join(tmpdir(), 'dsh-cron-legacy-inspect-'))
@@ -444,8 +500,14 @@ console.log('✓ durable subagent sessions are rejected before cold resume')
 const failedDir = mkdtempSync(join(tmpdir(), 'dsh-cron-resume-fail-'))
 const failed = makeCtx(join(failedDir, 'tasks.json'), join(failedDir, 'history.jsonl'), [
   { id: 'held', prompt: 'held owner', at: past, sessionId: 'sess-missing' },
-], { roots: [otherAgent], resumeError: new Error('resume failed') })
+], {
+  roots: [otherAgent], resumeError: new Error('resume failed'), persistenceApi: 'handle',
+  eventState: 'shared-frozen',
+  inspected: { meta: { id: 'sess-missing', cwd: 'C:\\workspace' }, events: [] },
+})
 await new Promise((r) => setTimeout(r, 4200))
+assert.ok(failed.resumes.length >= 2, 'a real resume rejection stays overdue and retries')
+assert.equal(failed.persistenceCloses.length, failed.resumes.length, 'handle closes before each failed resume')
 assert.equal(otherFired.length, 0, 'resume failure still never falls back')
 assert.equal(failed.fired.length, 0)
 assert.equal(existsSync(join(failedDir, 'history.jsonl')), false, 'failed delivery creates no run history')

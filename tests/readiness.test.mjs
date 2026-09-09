@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { assertReleaseMetadata } from '../scripts/release-policy.mjs'
+import { CORE_COMMITS } from './core-source.mjs'
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8').replaceAll('\r\n', '\n')
 const manifest = JSON.parse(read('package.json'))
@@ -43,6 +44,21 @@ test('PR policy and immutable source build are wired into CI', () => {
     assert.ok(workflow.includes('persist-credentials: false'))
     assert.ok(!workflow.includes('pull_request_target:'))
     assert.ok(!workflow.includes('workflow_run:'))
+  }
+})
+
+test('every exact Core baseline remains wired into CI, release and documentation', () => {
+  assert.ok(ci.includes("os: [ubuntu-latest, windows-latest]"))
+  assert.ok(ci.includes("node: ['22.19.0', '24']"))
+  for (const [commit, version] of CORE_COMMITS) {
+    assert.ok(ci.includes(`ref: ${commit}`), `CI missing Core ${version}`)
+    const checkout = release.match(new RegExp(`ref: ${commit}\\n +path: ([^\\n]+)`))
+    assert.ok(checkout, `Release missing Core ${version} checkout`)
+    const path = checkout[1].trim()
+    assert.ok(release.includes('DSH_CORE_PATH: ${{ github.workspace }}/' + path), `Release must test ${version}, not just check it out`)
+    for (const document of ['README.md', 'RELEASE.md', 'docs/agentic-readiness.md']) {
+      assert.ok(read(document).includes(commit), `${document} missing exact Core ${version}`)
+    }
   }
 })
 

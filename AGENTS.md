@@ -34,7 +34,7 @@ pnpm release:check --base origin/main
 
 - `pnpm verify` includes typecheck, build, Host/client tests, release/readiness tests and package smoke. The final PR check compares **committed** changes against the PR base; commit the complete candidate before running `release:check` locally.
 - Browser tests are separate and mandatory for UI/release work. Their fixtures are not proof that the user's current GUI has been updated.
-- Set `DSH_CORE_PATH` to a clean source checkout at a supported exact commit for Core-source checks. Without it, the test explicitly skips that portion: report the skip, not a full compatibility pass. CI checks both supported Core commits on Windows/Linux and Node 22.19/24.
+- Set `DSH_CORE_PATH` to a clean source checkout at a supported exact commit for Core-source checks. Alternatively set `DSH_CORE_REF` as well to read immutable Git blobs at an allowlisted exact SHA without altering the checkout. Without `DSH_CORE_PATH`, tests explicitly skip source checks: report the skip, not a full compatibility pass. CI checks four exact Core commits (0.1.2-rc.1, 0.1.3-alpha.1, 0.1.5-alpha.1/.2) on Windows/Linux and Node 22.19/24. Source-backed 0.1.5 handle tests use fake storage/agents, not full Core/JSONL migration or live Host verification.
 - For optional integration-contract tests, set `DSH_BETTER_SIDEBAR_PATH` to the supported Better Sidebar source package and run `node tests/sidebar-contract.test.mjs`.
 - Review the diff, generated bundle, lockfile scope and secrets. Fix failing tests; do not remove assertions, weaken ownership, change registries, or disable TLS to obtain a green result.
 
