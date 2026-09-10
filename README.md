@@ -62,15 +62,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.4.7
+dsh plugin --profile web add github:cloga/dsh-cron#v0.4.8
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.4.7 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.4.7) 下载 `dsh-cron-0.4.7.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.4.8 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.4.8) 下载 `dsh-cron-0.4.8.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.4.7.tgz
+dsh plugin --profile web add ./dsh-cron-0.4.8.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -82,7 +82,7 @@ dsh plugin --profile web add ./dsh-cron-0.4.7.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.7'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.8'
 ```
 
 </details>
@@ -95,7 +95,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.7'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.4.7`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.4.8`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 
@@ -146,7 +146,7 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 
 | 项目 | 支持范围 |
 | --- | --- |
-| DSH Core | 保留受控 `0.1.1-rc.2`、官方 `0.1.2-rc.1`、`0.1.3-alpha.1`；v0.4.7 新增精确 `0.1.5-alpha.1` / `0.1.5-alpha.2` 冷恢复读结果适配。下文区分源码合同、fixture 与真实 Host 验证；不承诺整个 0.1.5 系列兼容 |
+| DSH Core | 保留受控 `0.1.1-rc.2`、官方 `0.1.2-rc.1`、`0.1.3-alpha.1`；v0.4.7 新增精确 `0.1.5-alpha.1` / `0.1.5-alpha.2` 冷恢复读结果适配，v0.4.8 新增官方精确 `0.1.5-rc.2`。下文区分源码合同、fixture 与真实 Host 验证；不承诺整个 0.1.5 系列兼容 |
 | Better Sidebar | **可选**；按 `0.18.0` 的公开 Client Service 合同验证，并进行版本/能力检测；缺失、不兼容、禁用或卸载时回退 |
 | Profile | 常驻 Web / Desktop Web；一次性 headless 进程不提供未来持续调度保证 |
 | Node.js / 开发包管理器 | `^22.19.0 || >=24.0.0` / `pnpm@11.7.0` |
@@ -172,7 +172,7 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 | `storagePath` / `historyPath` | 空值表示使用 DSH Home 下的默认文件 |
 | `tasks` | 静态任务列表，每项必须显式设置 root `sessionId`；动态任务更适合通过会话工具创建 |
 
-Core 0.1.3 使用 snapshot header 与可关闭的 read handle，`read()` 返回事件数组；0.1.5-alpha.1/.2 返回 `{ eventState, events }`。v0.4.7 同时适配两种形状，只读取事件，不修改/转移事件所有权；旧 Core 的 `inspect()` 保持不变。非法 handle/结果、错误 owner 或子代理 header 会拒绝恢复；读取或关闭失败不会降级到错误的会话。更深的 DST/跨时区性质测试仍属于后续工作，不把现有覆盖描述为所有边界条件的保证。
+Core 0.1.3 使用 snapshot header 与可关闭的 read handle，`read()` 返回事件数组；0.1.5-alpha.1/.2 和精确 0.1.5-rc.2 返回 `{ eventState, events }`。v0.4.7 起同时适配两种形状，只读取事件，不修改/转移事件所有权；旧 Core 的 `inspect()` 保持不变。非法 handle/结果、错误 owner 或子代理 header 会拒绝恢复；读取或关闭失败不会降级到错误的会话。更深的 DST/跨时区性质测试仍属于后续工作，不把现有覆盖描述为所有边界条件的保证。
 
 </details>
 
@@ -207,8 +207,9 @@ pnpm release:check --base origin/main  # 检查已提交的 PR 候选
 | 0.1.3-alpha.1 | `d347e703908d0406b7a7ef80e3a0e594d86b2215` |
 | 0.1.5-alpha.1 | `5dda764ed3aa172535a7967b06ff95d9cbfe536a` |
 | 0.1.5-alpha.2 | `b2e3b2a0125854567a4a5fcba75782e42fe84901` |
+| 0.1.5-rc.2 | `fb2c4b9e698e30edb738bca4cf0618587db7d203` |
 
-未设置 `DSH_CORE_PATH` 时只验证包声明并显式跳过源码检查。CI 在 Windows/Linux、Node 22.19/24 上检查四个精确基线。源码验证检查真实返回类型；0.1.5 额外执行对应源码的 JSONL handle 类并接入 Cron 冷恢复（fake storage/AgentRegistry），覆盖两种 eventState、空事件、preset/model 和关闭顺序。这不是完整 Core 启动、JSONL 文件迁移/IO、真实模型或已安装 Host/GUI 验证，不把 API 名称检查称为全面兼容。
+未设置 `DSH_CORE_PATH` 时只验证包声明并显式跳过源码检查。CI 在 Windows/Linux、Node 22.19/24 上检查五个精确基线。源码验证检查真实返回类型；上述三个精确 0.1.5 版本额外验证 header utilities/session 与 shell overlay/root 的 Slot 声明，并执行各自 Git 源码的 JSONL handle 类接入 Cron 冷恢复（fake storage/AgentRegistry），覆盖两种 eventState、空/非空事件、current/primed 切片、preset/model、幂等关闭和关闭后拒绝读取。rc.2 的 persistence 与 JSONL handle 源码相对 alpha.2 未变，保留已有双形状运行时适配，无需 RuntimeClient 改写。这不是完整 Core 启动、JSONL 文件迁移/IO、真实模型或已安装 Host/GUI 验证，不把 API 名称检查称为全面兼容。
 
 设置 `DSH_BETTER_SIDEBAR_PATH` 指向 0.18.0 源码包后，可运行 `node tests/sidebar-contract.test.mjs` 验证真实 reducer/Cordis 合同。截图复现命令见 [图片说明](docs/images/README.md)。
 

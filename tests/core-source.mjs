@@ -10,7 +10,22 @@ export const CORE_COMMITS = new Map([
   ['d347e703908d0406b7a7ef80e3a0e594d86b2215', '0.1.3-alpha.1'],
   ['5dda764ed3aa172535a7967b06ff95d9cbfe536a', '0.1.5-alpha.1'],
   ['b2e3b2a0125854567a4a5fcba75782e42fe84901', '0.1.5-alpha.2'],
+  ['fb2c4b9e698e30edb738bca4cf0618587db7d203', '0.1.5-rc.2'],
 ])
+
+// Select fixture behavior by an exact supported version, never a 0.1.5 wildcard.
+export const CORE_READ_SHAPES = new Map([
+  ['0.1.2-rc.1', 'inspection'],
+  ['0.1.3-alpha.1', 'array'],
+  ['0.1.5-alpha.1', 'event-state'],
+  ['0.1.5-alpha.2', 'event-state'],
+  ['0.1.5-rc.2', 'event-state'],
+])
+
+export function coreReadShape(version) {
+  assert.ok(CORE_READ_SHAPES.has(version), 'Core read shape requires an exact supported version')
+  return CORE_READ_SHAPES.get(version)
+}
 
 export function assertSourceIdentity(commit, status, version) {
   assert.ok(CORE_COMMITS.has(commit), 'Core must resolve to an exact supported official commit')
@@ -54,6 +69,25 @@ export function assertHandleContract(source, modern) {
     const result = declaration(source, 'SessionHandleReadResult', ts.isInterfaceDeclaration)
     assert.equal(result.members.find(member => member.name?.getText() === 'events')?.type?.getText(), 'readonly SessionEvent[]')
     assert.equal(result.members.find(member => member.name?.getText() === 'eventState')?.type?.getText(), 'SessionSeedEventState')
+  }
+}
+
+// Check the actual declared seat shape, not merely a matching slot name.
+export function assertSlotContract(source, name, kind, scope) {
+  const file = ts.createSourceFile('slots.ts', source, ts.ScriptTarget.Latest, true)
+  let contract
+  const visit = node => {
+    if (ts.isPropertySignature(node) && node.name && ts.isStringLiteral(node.name) && node.name.text === name) {
+      contract = node.type
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(file)
+  assert.ok(contract && ts.isTypeLiteralNode(contract), `missing slot contract ${name}`)
+  for (const [field, expected] of [['kind', kind], ['scope', scope]]) {
+    const type = contract.members.find(member => member.name?.getText() === field)?.type
+    assert.ok(type && ts.isLiteralTypeNode(type) && ts.isStringLiteral(type.literal))
+    assert.equal(type.literal.text, expected, `${name}.${field}`)
   }
 }
 

@@ -73,6 +73,12 @@ jobs:
           ref: b2e3b2a0125854567a4a5fcba75782e42fe84901
           path: dsh-015-alpha2
           persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: fb2c4b9e698e30edb738bca4cf0618587db7d203
+          path: dsh-015-rc2
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -94,6 +100,10 @@ jobs:
       - name: Verify exact 0.1.5-alpha.2 source and cold-read contract
         env:
           DSH_CORE_PATH: ${{ github.workspace }}/dsh-015-alpha2
+        run: pnpm test:core
+      - name: Verify exact 0.1.5-rc.2 source and native cold-read contract
+        env:
+          DSH_CORE_PATH: ${{ github.workspace }}/dsh-015-rc2
         run: pnpm test:core
       - name: Verify sidebar browser regression
         run: |
