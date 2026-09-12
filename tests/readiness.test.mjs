@@ -67,6 +67,24 @@ test('every exact Core baseline remains wired into CI, release and documentation
   }
 })
 
+test('native Sidebar execution cannot silently disappear from required verification', () => {
+  const ref = [...CORE_COMMITS].find(([, version]) => version === '0.1.5-rc.2')[0]
+  assert.match(manifest.scripts.test, /native-sidebar-render\.test\.mjs/)
+  assert.match(manifest.scripts['test:core'], /official-sidebar-contract\.test\.mjs/)
+  assert.match(manifest.scripts['test:sidebar'], /official-sidebar-browser\.test\.mjs/)
+  assert.ok(ci.includes('DSH_CORE_REF: ${{ matrix.core.ref }}'))
+  const browser = ci.split('\n  sidebar-browser:\n')[1]?.split('\n  release-ready:\n')[0]
+  assert.ok(browser?.includes('DSH_CORE_PATH: ${{ github.workspace }}/dsh-sidebar-core'))
+  assert.ok(browser.includes(`DSH_CORE_REF: ${ref}`))
+  assert.ok(browser.includes(`ref: ${ref}\n          path: dsh-sidebar-core`))
+  assert.ok(browser.includes('run: pnpm test:sidebar'))
+  const releasedBrowser = release.split('      - name: Verify sidebar browser regression\n')[1]?.split('      - name:')[0]
+  assert.ok(releasedBrowser?.includes('DSH_CORE_PATH: ${{ github.workspace }}/dsh-015-rc2'))
+  assert.ok(releasedBrowser.includes(`DSH_CORE_REF: ${ref}`))
+  assert.ok(releasedBrowser.includes('pnpm test:sidebar'))
+  for (const step of [browser, releasedBrowser]) assert.ok(!step.includes('continue-on-error'))
+})
+
 test('stable required gate fails for failed, cancelled and skipped dependencies', () => {
   const gate = ci.split('\n  release-ready:\n')[1]?.split('\n  publish:\n')[0]
   assert.ok(gate)

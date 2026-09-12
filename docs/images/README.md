@@ -1,5 +1,27 @@
 # README 截图来源与复现
 
+## v0.5.0 官方合同 + 实际 Cron 的合成容器测试图
+
+`native-tasks-light.png`、`native-history-dark.png`、`native-narrow-error.png` 来自 `tests/official-sidebar-browser.test.mjs`，分别对应其 `synthetic-desktop-light-populated.png`、`synthetic-desktop-dark-history-owner-B.png` 和 `synthetic-narrow-dark-error.png`。保留画面中的 **SYNTHETIC CONTAINER** 标记，不把测试外壳包装成真实 DSH UI。
+
+- 实际 Cron：本版本构建的 `lib/client.js`，SHA-256 `47fdbdbfdba1836efd4a41a2a46bcc81ee75a7bf74b6c3cfeb9f69dc1a45ca22`，React/ReactDOM 18.3.1。
+- 实际上游逻辑：从 Core `fb2c4b9e698e30edb738bca4cf0618587db7d203` 的只读 Git blobs 执行 registry/controller/domain/stores/dockkit planners，不修改 Core；浏览器通过 fixture-only RPC 驱动这些模型。
+- 明确模拟：聊天、外围标签栏和页面布局，不是官方完整 renderer；任务、会话标题与接口数据均为样本，所有网络被阻断。没有真实任务或模型调用。
+- 视口：桌面1280×820，窄屏390×780。窄图是小容器压力测试，不复刻 Core 的自动全屏布局。未做后期裁切/重绘。
+- 验证：去重、Tasks/History导航、聊天可用、旧通知归属、待确认删除、pending防重复、过期异步结果、分栏可见性、错误重试、亮暗及窄容器边界、回退和卸载。不是用户当前 GUI 的激活验收。
+
+复现（开发依赖及浏览器已具备，不自动安装）：
+
+```sh
+DSH_CORE_PATH=/path/to/existing/deepseek-harness DSH_CORE_REF=fb2c4b9e698e30edb738bca4cf0618587db7d203 node tests/official-sidebar-browser.test.mjs
+```
+
+Windows 可设置 `DSH_CHROMIUM_EXECUTABLE` 为已安装 Edge 路径。默认输出到被 Git 忽略的 `tests/fixtures/official-sidebar/artifacts/`；也可指定 `DSH_BROWSER_ARTIFACTS`。正式图片由通过的输出复制，测试不会改写本目录。
+
+## 历史 v0.4.6：Better Sidebar / 独立面板组件演示
+
+以下旧图片保留用于历史来源，不表示 v0.5.0 的新原生 UI；旧 `docs/capture-screenshots.mjs` 只针对0.4.6，不应在新版本运行或覆盖本说明。
+
 > **组件演示 · 示例数据**：这三张 PNG 是实际 Cron 组件在隔离 Playwright 页面中的截图，**不是运行中的 DSH GUI 或已部署集成的截图**。外围外壳和 Better Sidebar 服务均为演示夹具。
 
 ## 复现
