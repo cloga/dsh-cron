@@ -40,6 +40,8 @@ jobs:
             ref: 5dda764ed3aa172535a7967b06ff95d9cbfe536a
           - name: alpha015-2
             ref: b2e3b2a0125854567a4a5fcba75782e42fe84901
+          - name: rc015-2
+            ref: fb2c4b9e698e30edb738bca4cf0618587db7d203
     runs-on: ${{ matrix.os }}
     env:
       DSH_CORE_PATH: ${{ github.workspace }}/dsh-core

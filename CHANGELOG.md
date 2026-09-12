@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.8
+
+- Add official Core `0.1.5-rc.2` at exact commit `fb2c4b9e698e30edb738bca4cf0618587db7d203` (#32), retaining all four previous exact source pins and legacy peer lines. No broad 0.1.5 prerelease/stable range.
+- Preserve the existing dual `SessionHandle.read()` normalization, legacy `inspect()`, owner isolation, retry and cleanup behavior. The rc.2 persistence/JSONL handle source is unchanged from alpha.2; no Host or Client runtime rewrite or dependency upgrade is needed.
+- Execute each supported 0.1.5 tag's actual JSONL handle class through Cron cold resume with fake storage/agents, including rc.2; explicitly select exact-version read shapes, verify public Slot kinds/scopes, and expand current/primed, empty/non-empty, event-state, slice and idempotent-close coverage.
+- Extend CI/release verification to all five exact source baselines and keep documentation/workflow regression checks aligned. Source-backed fixtures do not establish full Core startup, real JSONL IO/migration, installed Profile, live model or GUI compatibility.
+- This pre-1.0 patch adds a bounded compatible Core baseline without changing scheduling or UI behavior. Publication and committed-head release-policy verification remain separate from an uncommitted worktree assessment.
+
 ## 0.4.7
 
 - Fix cold root Session resume on Core `0.1.5-alpha.1` and `0.1.5-alpha.2` (#30; alpha.1 tracking #29): unwrap `SessionHandle.read()` results carrying `{ eventState, events }`, while preserving Core 0.1.3 array reads and legacy `inspect()`.

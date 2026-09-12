@@ -5,9 +5,9 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
-import { CORE_COMMITS, assertSourceIdentity, openCoreSource, assertHandleContract, declaration, loadJsonlHandle } from './core-source.mjs'
+import { CORE_COMMITS, CORE_READ_SHAPES, coreReadShape, assertSourceIdentity, openCoreSource, assertHandleContract, assertSlotContract, declaration, loadJsonlHandle } from './core-source.mjs'
 
-const DSH_RANGE = '>=0.1.1-rc.2 <0.1.2-0 || >=0.1.2-alpha.4 <0.1.2 || >=0.1.3-alpha.1 <0.1.3-alpha.2 || 0.1.5-alpha.1 || 0.1.5-alpha.2'
+const DSH_RANGE = '>=0.1.1-rc.2 <0.1.2-0 || >=0.1.2-alpha.4 <0.1.2 || >=0.1.3-alpha.1 <0.1.3-alpha.2 || 0.1.5-alpha.1 || 0.1.5-alpha.2 || 0.1.5-rc.2'
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 const requiredPeers = ['agent', 'agent-presets', 'agent-default-model', 'llm', 'session', 'session-persistence', 'tools'].map(name => `@deepseek-ai/dsh-${name}`)
 const optionalPeers = ['@deepseek-ai/dsh-host-webserver', '@deepseek-ai/dsh-web']
@@ -15,12 +15,23 @@ assert.match(manifest.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/)
 assert.equal(manifest.packageManager, 'pnpm@11.7.0')
 assert.equal(manifest.engines.node, '^22.19.0 || >=24.0.0')
 for (const name of [...requiredPeers, ...optionalPeers]) {
-  assert.equal(manifest.peerDependencies[name], DSH_RANGE, `${name} must retain legacy lines and only add the two exact 0.1.5 alphas`)
+  assert.equal(manifest.peerDependencies[name], DSH_RANGE, `${name} must retain legacy lines and only add exact 0.1.5-alpha.1 / alpha.2 / rc.2`)
 }
 for (const name of optionalPeers) assert.equal(manifest.peerDependenciesMeta[name]?.optional, true)
 assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-layout'))
 assert.ok(!manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-runtime'))
-console.log('✓ package policy retains legacy Core and admits only 0.1.5-alpha.1 / alpha.2 additions')
+console.log('✓ package policy retains legacy Core and admits only 0.1.5-alpha.1 / alpha.2 / rc.2 additions')
+
+assert.equal(CORE_COMMITS.size, 5, 'retain all four previous exact pins plus rc.2')
+assert.deepEqual([...CORE_READ_SHAPES.keys()], [...CORE_COMMITS.values()])
+assert.equal(coreReadShape('0.1.2-rc.1'), 'inspection')
+assert.equal(coreReadShape('0.1.3-alpha.1'), 'array')
+for (const version of ['0.1.5-alpha.1', '0.1.5-alpha.2', '0.1.5-rc.2']) {
+  assert.equal(coreReadShape(version), 'event-state', `${version} must execute the actual JSONL handle fixture`)
+}
+for (const version of ['0.1.5-alpha.3', '0.1.5-rc.1', '0.1.5-rc.3', '0.1.5']) {
+  assert.throws(() => coreReadShape(version), /exact supported version/)
+}
 
 for (const [commit, version] of CORE_COMMITS) {
   assertSourceIdentity(commit, '', version)
@@ -39,8 +50,9 @@ if (!corePath) {
 
 if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts'))) {
   const { commit, version, read, mode } = openCoreSource(corePath, coreRef)
-  const modern = version.startsWith('0.1.5-')
-  const handles = modern || version === '0.1.3-alpha.1'
+  const shape = coreReadShape(version)
+  const modern = shape === 'event-state'
+  const handles = shape !== 'inspection'
   const liveSession = read('packages/core/session/src/index.ts')
   for (const method of ['eventAt(seq: SessionSeq)', 'snapshotEvents(', 'ownEvents(): readonly SessionEvent[]']) {
     assert.ok(liveSession.includes(method), `live Session method unavailable: ${method}`)
@@ -59,6 +71,15 @@ if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts')))
     if (modern) {
       const state = declaration(read('packages/core/session/src/types.ts'), 'SessionSeedEventState', ts.isTypeAliasDeclaration)
       assert.equal(state.type.getText(), "'detached' | 'shared-frozen'")
+      for (const [path, name, scope] of [
+        ['ui-conversation/src/client/contract/slots.ts', 'conversation.session.header.utilities', 'session'],
+        ['ui-layout/src/client/index.ts', 'shell.overlay', 'root'],
+      ]) {
+        const slots = read(`packages/client/${path}`)
+        assertSlotContract(slots, name, 'list', scope)
+        assert.throws(() => assertSlotContract(slots, name, 'single', scope), /kind/)
+        assert.throws(() => assertSlotContract(slots, name, 'list', scope === 'root' ? 'session' : 'root'), /scope/)
+      }
       await verifySourceHandleColdResume(read, version)
     }
   } else {
@@ -97,7 +118,7 @@ const [{ AgentRegistry }, { AgentPresets }, { AgentDefaultModelConfig }, { Jsonl
 for (const [owner, method] of [[AgentRegistry, 'resume'], [AgentRegistry, 'roots'], [AgentPresets, 'mount'], [AgentDefaultModelConfig, 'currentSelection'], [JsonlSessionPersistence, 'list']]) {
   assert.equal(typeof owner?.prototype?.[method], 'function', `${owner?.name ?? 'service'}.${method} unavailable`)
 }
-const readMethod = /^(?:0\.1\.3|0\.1\.5)-/.test(installed) ? 'open' : 'inspect'
+const readMethod = installed !== '0.1.1-rc.2' && coreReadShape(installed) !== 'inspection' ? 'open' : 'inspect'
 assert.equal(typeof JsonlSessionPersistence?.prototype?.[readMethod], 'function')
 console.log(`✓ installed Core ${installed} capability probe only; no exact source or live Host verification`)
 
@@ -106,10 +127,8 @@ async function verifySourceHandleColdResume(read, version) {
   const { apply, Config } = await import('../index.js')
   // Use the actual tagged read/readCurrent/readPrimed/close implementation with
   // fake storage and AgentRegistry. This does not test JSONL IO or migrations.
-  for (const [eventState, empty, primed] of [
-    ['detached', false, false], ['shared-frozen', false, false],
-    ['detached', true, false], ['shared-frozen', true, true],
-  ]) {
+  for (const [eventState, empty, primed] of ['detached', 'shared-frozen'].flatMap(state =>
+    [false, true].flatMap(empty => [false, true].map(primed => [state, empty, primed])))) {
     const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-source-handle-'))
     const disposers = []
     const meta = Object.freeze({ id: 'source-owner', cwd: directory, agentPreset: 'standard', delegationDepth: 0 })
@@ -147,7 +166,16 @@ async function verifySourceHandleColdResume(read, version) {
       assert.equal(result.eventState, eventState)
       assert.deepEqual(result.events, events)
       assert.notEqual(result.events, events, 'tagged handle supplies a caller-owned outer slice')
+      const slice = await probe.read(1, 1)
+      assert.equal(slice.eventState, eventState)
+      assert.deepEqual(slice.events, events.slice(1, 2))
+      const pastEnd = await probe.read(events.length, 1)
+      assert.equal(pastEnd.eventState, eventState, 'empty slices retain producer ownership state')
+      assert.deepEqual(pastEnd.events, [])
     } finally { await probe.close() }
+    await probe.close()
+    assert.equal(releases, 1, 'actual handle close is idempotent')
+    await assert.rejects(() => probe.read(), 'actual closed handle must reject further reads')
     releases = 0
     try {
       apply({

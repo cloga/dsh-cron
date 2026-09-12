@@ -48,6 +48,8 @@ test('PR policy and immutable source build are wired into CI', () => {
 })
 
 test('every exact Core baseline remains wired into CI, release and documentation', () => {
+  assert.equal(CORE_COMMITS.get('fb2c4b9e698e30edb738bca4cf0618587db7d203'), '0.1.5-rc.2')
+  assert.equal(CORE_COMMITS.size, 5)
   assert.ok(ci.includes("os: [ubuntu-latest, windows-latest]"))
   assert.ok(ci.includes("node: ['22.19.0', '24']"))
   for (const [commit, version] of CORE_COMMITS) {
@@ -55,7 +57,10 @@ test('every exact Core baseline remains wired into CI, release and documentation
     const checkout = release.match(new RegExp(`ref: ${commit}\\n +path: ([^\\n]+)`))
     assert.ok(checkout, `Release missing Core ${version} checkout`)
     const path = checkout[1].trim()
-    assert.ok(release.includes('DSH_CORE_PATH: ${{ github.workspace }}/' + path), `Release must test ${version}, not just check it out`)
+    const sourceStep = release.split(/\n      - /).find(step => step.includes('DSH_CORE_PATH: ${{ github.workspace }}/' + path))
+    assert.ok(sourceStep, `Release must test ${version}, not just check it out`)
+    assert.match(sourceStep, /run: pnpm (?:verify|test:core)\s*$/, `Release must execute the source suite for ${version}`)
+    assert.ok(!sourceStep.includes('continue-on-error'), 'Source compatibility must not be advisory')
     for (const document of ['README.md', 'RELEASE.md', 'docs/agentic-readiness.md']) {
       assert.ok(read(document).includes(commit), `${document} missing exact Core ${version}`)
     }
