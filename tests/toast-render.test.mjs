@@ -52,7 +52,16 @@ let optionalCallback
 let bridgeCleanup = []
 const ctx = {
   effect: fn => { const dispose = fn(); if (dispose) cleanup.push(dispose) },
-  inject: (names, callback) => { assert.deepEqual(names, ['betterSidebar']); optionalCallback = callback },
+  inject: (names, callback) => {
+    // This suite keeps the native service absent and exercises the retained
+    // legacy/dialog paths; official integration has separate contract tests.
+    if (names[0] === 'sidebarRightTabs') {
+      assert.deepEqual(names, ['sidebarRightTabs', 'sidebarRight'])
+      return
+    }
+    assert.deepEqual(names, ['betterSidebar'])
+    optionalCallback = callback
+  },
   locale: { register: () => () => {}, bind: () => t },
   slots: {
     inject: (_key, callback) => callback(),
@@ -128,7 +137,8 @@ assertClock(true)
 assert.ok(document.querySelector('dialog').textContent.includes('prompt-A'))
 assert.equal(intervals.size, 2, 'only visible panel polls')
 assert.equal(document.querySelectorAll('dialog .dsh-cron-drawerTitle').length, 1, 'fallback retains its title')
-assert.equal(document.querySelectorAll('dialog .dsh-cron-owner').length, 1, 'fallback has one explicit owner')
+assert.equal(document.querySelectorAll('dialog > .dsh-cron-owner').length, 1, 'fallback has one main owner context')
+assert.equal(document.querySelectorAll('dialog .dsh-cron-settings .dsh-cron-owner').length, 1, 'settings retain full owner identity')
 assert.ok(document.querySelector('dialog .dsh-cron-owner').textContent.includes('A'))
 const fallbackSettings = await openSettings()
 await escapeSettings(fallbackSettings)
@@ -216,9 +226,10 @@ const embedded = document.querySelector('.dsh-cron-sidebarPanel')
 assert.equal(embedded.querySelector('.dsh-cron-drawerHead'), null, 'host tab supplies title; no inner header')
 assert.equal(embedded.querySelector('.dsh-cron-drawerTitle'), null, 'no repeated visible panel title')
 assert.equal(embedded.querySelectorAll('.dsh-cron-toolbar').length, 1, 'one compact toolbar')
-assert.equal(embedded.querySelectorAll('.dsh-cron-owner').length, 1, 'owner remains discoverable once')
-assert.ok(embedded.querySelector('.dsh-cron-owner').closest('details'), 'embedded owner is inside closed settings')
-assert.equal(embedded.querySelector('details').open, false, 'Session UUID is not permanently displayed')
+assert.equal(embedded.querySelectorAll(':scope > .dsh-cron-owner').length, 1, 'embedded panel has one recognizable owner context')
+assert.equal(embedded.querySelectorAll('.dsh-cron-settings .dsh-cron-owner').length, 1, 'full owner identity remains in settings')
+assert.equal(embedded.querySelector('.dsh-cron-settings').open, false, 'notification settings are initially collapsed')
+assert.ok(embedded.querySelector(':scope > .dsh-cron-owner').textContent.includes('A'), 'unknown legacy title keeps its owner explicitly identifiable')
 const headerEntry = document.querySelector('#root .dsh-cron-trigger')
 assert.ok(headerEntry.classList.contains('dsh-cron-triggerCompact'), 'visible owner sidebar uses compact entry')
 assert.equal(headerEntry.getAttribute('aria-label'), 'trigger.aria', 'icon keeps accessible name')
@@ -246,7 +257,10 @@ assert.deepEqual(requests.findLast(request => request.method === 'toggle').paylo
 await click(findButton('action.edit'))
 await click(findButton('action.save'))
 assert.deepEqual(requests.findLast(request => request.method === 'update').payload, { id: 'task-A', prompt: 'prompt-A', every: 60, sessionId: 'A' })
+const removesBeforeConfirmation = requests.filter(request => request.method === 'remove').length
 await click(findButton('action.remove'))
+assert.equal(requests.filter(request => request.method === 'remove').length, removesBeforeConfirmation, 'opening confirmation never deletes')
+await click(findButton('action.confirmRemove'))
 assert.deepEqual(requests.findLast(request => request.method === 'remove').payload, { id: 'task-A', sessionId: 'A' })
 let finishAction
 pendingAction = new Promise(resolve => { finishAction = resolve })

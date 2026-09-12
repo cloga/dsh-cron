@@ -70,16 +70,26 @@ try {
     }
     const ctx = {
       effect: fn => { const dispose = fn(); if (dispose) disposers.push(dispose) },
-      inject: (_names, callback) => { optional = callback },
+      inject: (names, callback) => {
+        // Keep this historical fixture on its legacy/standalone paths. Native
+        // registration and browser behavior have a dedicated fixture suite.
+        if (names[0] === 'sidebarRightTabs') {
+          if (names.join(',') !== 'sidebarRightTabs,sidebarRight') throw new Error('Unexpected native injection')
+          return
+        }
+        if (names.join(',') !== 'betterSidebar') throw new Error('Unexpected legacy injection')
+        optional = callback
+      },
       locale: { register: (_ns, value) => { dictionaries = value; return () => {} }, bind: () => t },
       slots: { inject: (_name, fn) => fn(), register: (spec, component) => { slots.set(spec.id, component); return () => {} } },
     }
     plugin.apply(ctx)
     const root = D.createRoot(document.getElementById('root'))
     const sideRoot = D.createRoot(document.getElementById('sidebar'))
+    const useSessions = selector => selector({ current: owner, byId: { [owner]: { displayTitle: 'Demo scheduled work', blank: false } } })
     const render = () => root.render(R.createElement(R.Fragment, null,
-      R.createElement(slots.get('cron-trigger'), { t, sessionId: owner }),
-      R.createElement(slots.get('cron-drawer'), { t })))
+      R.createElement(slots.get('cron-trigger'), { t, sessionId: owner, useSessions }),
+      R.createElement(slots.get('cron-drawer'), { t, useSessions })))
     let descriptor
     let bridgeDispose
     let opens = 0
@@ -147,7 +157,7 @@ try {
   }), true, 'sidebar rail cannot cover dialog close')
   await page.keyboard.press('Tab')
   assert.equal(await page.evaluate(() => document.querySelector('dialog').contains(document.activeElement)), true, 'focus remains in modal')
-  assert.equal(await dialog.locator('.dsh-cron-owner').isVisible(), true, 'fallback owner stays visible')
+  assert.equal(await dialog.locator(':scope > .dsh-cron-owner').isVisible(), true, 'fallback owner stays visible')
   assert.equal(await dialog.locator('.dsh-cron-drawerTitle').count(), 1, 'fallback retains its own title')
   const fallbackSettings = dialog.locator('.dsh-cron-settings > summary')
   await fallbackSettings.click()
@@ -181,7 +191,8 @@ try {
   const panel = page.locator('.dsh-cron-sidebarPanel')
   assert.equal(await panel.locator('.dsh-cron-drawerHead').count(), 0, 'no repeated embedded heading row')
   assert.equal(await panel.locator('.dsh-cron-drawerTitle').count(), 0, 'outer tab supplies the only visible title')
-  assert.equal(await panel.locator('.dsh-cron-owner').isVisible(), false, 'UUID hidden at rest')
+  assert.equal(await panel.locator('.dsh-cron-settings .dsh-cron-owner').isVisible(), false, 'UUID hidden at rest')
+  assert.equal(await panel.locator(':scope > .dsh-cron-owner').innerText(), 'This session · Demo scheduled work', 'recognizable owner context remains visible outside settings')
   assert.equal(await trigger.locator('.dsh-cron-triggerLabel').count(), 0, 'visible sidebar uses icon-only entry')
   assert.equal(await trigger.getAttribute('aria-expanded'), 'true')
   const toolbarBox = await panel.locator('.dsh-cron-toolbar').boundingBox()
@@ -191,8 +202,8 @@ try {
   }
   const settingsSummary = panel.locator('.dsh-cron-settings > summary')
   await settingsSummary.click()
-  assert.equal(await panel.locator('.dsh-cron-owner').isVisible(), true, 'full owner remains discoverable in settings')
-  assert.equal(await panel.locator('.dsh-cron-owner').innerText(), 'Session: demo-session-00000000-1111-2222-3333-444444444444')
+  assert.equal(await panel.locator('.dsh-cron-settings .dsh-cron-owner').isVisible(), true, 'full owner remains discoverable in settings')
+  assert.equal(await panel.locator('.dsh-cron-settings .dsh-cron-owner').innerText(), 'Session ID: demo-session-00000000-1111-2222-3333-444444444444')
   await page.getByRole('button', { name: 'Conversation action', exact: true }).click()
   assert.equal(await panel.locator('.dsh-cron-settings').evaluate(el => el.open), false, 'outside pointer closes menu')
   await trigger.click()

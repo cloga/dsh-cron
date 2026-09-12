@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0
+
+- Add current-session Cron integration through the official native Sidebar registry and keyed body Slot (#34). The clock selects the same native destination; Cron reuses native close, split, fullscreen and sizing rather than opening a second modal or changing the default Files/Guide entry.
+- Preserve the optional Better Sidebar and pinned standalone fallback on older/unavailable native surfaces. Old-session notifications never silently open another owner's tasks in the current session; scheduling, Host APIs, persistence and root ownership are unchanged.
+- Show recognizable session context, keep technical IDs in details, distinguish loading/empty/read failure with retry, and guard task actions with pending feedback and an explicit delete confirmation.
+- Bind native tab occurrences, visibility and async requests to their owner and lifetime, including hidden/unmounted bodies and multiple panes. No new Core runtime import or Core implementation patch is required.
+- Add exact tagged native registry/controller/domain/store/planner execution and real-browser fixture regressions while retaining all five supported Core pins, both platforms and Node 22.19/24. Older tags without native Sidebar explicitly exercise fallback rather than claiming native support.
+- This pre-1.0 minor release adds an optional UI capability, not a cross-session task center or a change to task execution. Browser fixture evidence, source contracts, released artifacts and live Profile activation remain distinct.
+
 ## 0.4.8
 
 - Add official Core `0.1.5-rc.2` at exact commit `fb2c4b9e698e30edb738bca4cf0618587db7d203` (#32), retaining all four previous exact source pins and legacy peer lines. No broad 0.1.5 prerelease/stable range.

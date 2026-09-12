@@ -45,6 +45,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       DSH_CORE_PATH: ${{ github.workspace }}/dsh-core
+      DSH_CORE_REF: ${{ matrix.core.ref }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -67,9 +68,18 @@ jobs:
 
   sidebar-browser:
     runs-on: ubuntu-latest
+    env:
+      DSH_CORE_PATH: ${{ github.workspace }}/dsh-sidebar-core
+      DSH_CORE_REF: fb2c4b9e698e30edb738bca4cf0618587db7d203
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: fb2c4b9e698e30edb738bca4cf0618587db7d203
+          path: dsh-sidebar-core
           persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6

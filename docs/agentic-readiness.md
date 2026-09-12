@@ -10,14 +10,16 @@ Session-bound model Tools ─┐
 Session-bound /cron/api ───┘                 │
                                             └─ run lifecycle correlation
 src/client/index.tsx ─ shared Session-aware UI/notification state
-    ├─ header action + shell overlay fallback (native dialog)
-    ├─ sidebar.ts ─ optional Better Sidebar public service adapter
+    ├─ native-sidebar.ts ─ optional official registry + keyed body Slot adapter
+    ├─ header action selects the current owner's native tab
+    ├─ sidebar.ts ─ retained optional Better Sidebar public adapter
+    ├─ shell overlay ─ pinned old-owner / unavailable-service dialog fallback
     └─ locale.ts / styles.ts
                   │ tsdown
                   └─ lib/client.js (committed ModuleLoader distribution)
 ```
 
-Do not conflate Cron's scheduled-task tab with Better Sidebar's subagent **Tasks** tab. UI availability depends on the installed Cron version, active client bundle, compatible Sidebar service, and whether its tab type is enabled. A merged commit is not evidence of installation.
+The official native adapter is preferred when its registry, controller and keyed body seat are available. It contributes no guide card, preserving the selected Core's first-open behavior. Do not conflate Cron's scheduled-task tab with Better Sidebar's subagent **Tasks** tab. The legacy adapter is secondary; no compatible surface or an old-owner notification still uses a pinned dialog. UI availability depends on the installed Cron version and active Client, not merely a merged commit. Never call native private openTabIn or infer another session's ownership from the current header.
 
 Host mutations must carry a live root Session owner. A cold owner is resumed only from its own durable state, never from a fallback Session; a failed read/close/resume remains retryable. Client polling must reject stale-owner results and unwind listeners/timers on disposal. These boundaries matter more than cosmetic test snapshots.
 
@@ -28,7 +30,8 @@ Host mutations must carry a live root Session owner. A cold owner is resumed onl
 | Schedule / tools / HTTP / restart | `index.js`, `tests/host.test.mjs` | Host suite including owner rejection and restart/no-refire cases |
 | Core compatibility | `tests/core-compat.test.mjs`, peer ranges in `package.json` | Exact source identity and both persistence API seams; do not widen peer ranges speculatively |
 | UI / notification | `src/client/index.tsx`, `tests/toast-render.test.mjs` | Real React/portal lifecycle tests plus browser focus, modal, owner and stale-response tests |
-| Sidebar integration | `src/client/sidebar.ts`, `tests/sidebar-contract.test.mjs` | Compatible service/fallback/disabled/disposal; scopes, dedupe, floats; optional installed-source contract test |
+| Native Sidebar | `src/client/native-sidebar.ts`, `tests/native-sidebar*.test.mjs`, `tests/official-sidebar-*.test.mjs` | Two-stage public registration, current-owner open, slot/service lifetime, hidden BODY unmount vs record abort, multi-pane visibility, exact upstream controller/store/planners and synthetic-container browser behavior |
+| Legacy Sidebar | `src/client/sidebar.ts`, `tests/sidebar-contract.test.mjs` | Retained version/capability/fallback/disabled/disposal; scopes, dedupe, floats; optional installed-source contract test |
 | Build / packaging | `tsdown.config.ts`, `tests/package.test.mjs` | Fresh bundle, one ModuleLoader wrapper, packed entrypoints, no install scripts |
 | Release automation | `scripts/release-policy.mjs`, `scripts/publish-release.mjs` | Pure policy and fake-API publisher tests, wiring contract tests, then actual CI/Release evidence |
 
@@ -42,6 +45,8 @@ Host mutations must carry a live root Session owner. A cold owner is resumed onl
 - `node scripts/release-policy.mjs --plan`: read-only local release decision using manifest, commit and annotated tags. Run with fetched tags. This does not create a release.
 
 `DSH_CORE_PATH` is optional locally, but its absence is a **reported skip**, not Core-source verification. Exact commits: `a66e4702047846cdaa10c66c9d3df3951f5ea70d` (0.1.2-rc.1), `d347e703908d0406b7a7ef80e3a0e594d86b2215` (0.1.3-alpha.1), `5dda764ed3aa172535a7967b06ff95d9cbfe536a` (0.1.5-alpha.1), `b2e3b2a0125854567a4a5fcba75782e42fe84901` (0.1.5-alpha.2), `fb2c4b9e698e30edb738bca4cf0618587db7d203` (0.1.5-rc.2). All five remain in CI/release; only these three exact 0.1.5 versions select the event-state native-handle fixture. Default checkout mode requires no tracked edits. Optional `DSH_CORE_REF` reads immutable Git blobs at an allowlisted SHA without altering the checkout. Exact source declarations (including session-scoped header utilities and root-scoped shell overlay Slots for 0.1.5) are checked separately from package policy; 0.1.5 tests execute the tagged JSONL handle class through Cron cold resume using fake storage/agents, not real JSONL IO/migration or Core startup. `DSH_BETTER_SIDEBAR_PATH` enables the additional 0.18.0 source-contract test. Discover existing checkouts before obtaining sources.
+
+The native contract/browser suites resolve `DSH_NATIVE_CORE_REF ?? DSH_CORE_REF ?? checkout HEAD` only within the same allowlisted source identities. The three 0.1.5 refs execute their unchanged registry/controller/domain/store/dockkit planners (alpha.1's initial Guide differs from alpha.2/rc.2's sole-Files seed). The two earlier refs explicitly skip native-only cases. Browser CI and Release bind the rc.2 source path/ref so the native fixture cannot silently disappear; the outer React fixture is synthetic, not the complete official renderer. Ordinary dependencies resolve only from the repository's frozen closure, never a developer's Desktop installation.
 
 Distinguish four levels in reports: unit/fake context → real browser fixture → isolated package/Profile installation → actual running Host/GUI. Passing one does not prove the next. Do not start models or real scheduled tasks merely to fill a checkbox.
 

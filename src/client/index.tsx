@@ -1,5 +1,5 @@
-// Session-header entry + optional Better Sidebar tab, with a standalone dialog
-// fallback. The overlay owns one activity watcher; panel data stays session-scoped.
+// Session-header entry + optional native Sidebar, then Better Sidebar, then a
+// pinned standalone fallback. One activity watcher; all panel data stays owner-scoped.
 // All business operations still use the existing POST /cron/api/<method> API.
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom'
 import { zh, en } from './locale.js'
 import { css, styles } from './styles.js'
 import { CRON_TAB_ID, createSidebarTab, supportsSidebar, type SidebarService, type SidebarProps } from './sidebar.js'
+import { registerNativeSidebar, openNative, ownerTitle, createPanelConsumers, createRequestLease, type NativeController, type NativeBodyProps, type UseSessions } from './native-sidebar.js'
 
 /** Services required from the client runtime. */
 export const inject = ['slots', 'locale']
@@ -34,13 +35,16 @@ let drawerOpen = false
 let activeSessionId: string | null = null
 let drawerSessionId: string | null = null
 let sidebar: SidebarService | null = null
-interface SessionView { count: number; unread: number; tab: DrawerTab; visible: boolean }
+let nativeSidebar: NativeController | null = null
+const panelConsumers = createPanelConsumers()
+const sessionTitles = new Map<string, string>()
+interface SessionView { count: number; unread: number; tab: DrawerTab }
 const sessionViews = new Map<string, SessionView>()
 function sessionView(sessionId: string | null): SessionView {
-  if (!sessionId) return { count: 0, unread: 0, tab: 'tasks', visible: false }
+  if (!sessionId) return { count: 0, unread: 0, tab: 'tasks' }
   let view = sessionViews.get(sessionId)
   if (!view) {
-    view = { count: 0, unread: 0, tab: 'tasks', visible: false }
+    view = { count: 0, unread: 0, tab: 'tasks' }
     sessionViews.set(sessionId, view)
   }
   return view
@@ -119,7 +123,16 @@ function openDrawer(tab: DrawerTab, sessionId = activeSessionId) {
   sessionView(sessionId).tab = tab
   sessionView(sessionId).unread = 0
   try {
-    if (sidebar?.isTabEnabled(CRON_TAB_ID) && sidebar.getSnapshot().sessionId === sessionId) {
+    if (openNative(nativeSidebar, sessionId, activeSessionId, tab, panelConsumers.pane(sessionId))) {
+      drawerOpen = false
+      storeNotify()
+      return
+    }
+  } catch (error) {
+    console.warn('[dsh-cron] native open failed; trying compatible fallback', error)
+  }
+  try {
+    if (sessionId === activeSessionId && sidebar?.isTabEnabled(CRON_TAB_ID) && sidebar.getSnapshot().sessionId === sessionId) {
       sidebar.openTab({ type: CRON_TAB_ID }, { sessionId })
       drawerOpen = false
       storeNotify()
@@ -142,7 +155,7 @@ function setEnabledCount(count: number, sessionId: string) {
 
 function bumpUnread(sessionId: string, by: number) {
   const view = sessionView(sessionId)
-  if ((drawerOpen && drawerSessionId === sessionId) || view.visible || by === 0) return
+  if ((drawerOpen && drawerSessionId === sessionId) || panelConsumers.visible(sessionId) || by === 0) return
   view.unread += by
   storeNotify()
 }
@@ -196,9 +209,10 @@ interface RunRecord {
   excerpt?: string
 }
 
-async function api<T>(method: string, payload?: unknown): Promise<T> {
+async function api<T>(method: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`/cron/api/${method}`, {
     method: 'POST',
+    signal,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload ?? {}),
   })
@@ -404,12 +418,22 @@ function ruleValueOf(task: TaskView): string {
 }
 
 /** Inline editor for one dynamic task (prompt + schedule rule). */
-function EditTaskForm({ t, task, sessionId, onDone }: { t: T; task: TaskView; sessionId: string; onDone: () => void }) {
+function EditTaskForm({ t, task, sessionId, onDone, signal }: { t: T; task: TaskView; sessionId: string; onDone: () => void; signal?: AbortSignal }) {
   const [form, setForm] = useState<EditFormState>({ prompt: task.prompt, rule: ruleOf(task), value: ruleValueOf(task) })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
+  const leaseRef = useRef<ReturnType<typeof createRequestLease> | null>(null)
+  useEffect(() => {
+    const lease = createRequestLease(sessionId, () => sessionId, signal)
+    leaseRef.current = lease
+    return () => lease.stop()
+  }, [sessionId, signal])
 
   const submit = async () => {
+    const lease = leaseRef.current
+    if (busyRef.current || !lease?.alive()) return
+    busyRef.current = true
     setBusy(true)
     setError('')
     try {
@@ -418,12 +442,12 @@ function EditTaskForm({ t, task, sessionId, onDone }: { t: T; task: TaskView; se
       else if (form.rule === 'every') payload.every = Number(form.value.trim())
       else if (form.rule === 'cron') payload.cron = form.value.trim()
       else payload.at = form.value.trim()
-      await api('update', payload)
-      onDone()
+      await api('update', payload, lease.signal)
+      if (lease.alive()) onDone()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      if (lease.alive()) setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setBusy(false)
+      if (lease.alive()) { busyRef.current = false; setBusy(false) }
     }
   }
 
@@ -435,12 +459,16 @@ function EditTaskForm({ t, task, sessionId, onDone }: { t: T; task: TaskView; se
         className={styles.textarea}
         value={form.prompt}
         placeholder={t('form.prompt')}
+        aria-label={t('form.prompt')}
+        disabled={busy}
         rows={2}
         onChange={(e) => setForm({ ...form, prompt: e.target.value })}
       />
       <div className={styles.formRow}>
         <select
           className={styles.select}
+          aria-label={t('form.schedule')}
+          disabled={busy}
           value={form.rule}
           onChange={(e) => setForm({ ...form, rule: e.target.value as EditFormState['rule'], value: '' })}
         >
@@ -453,10 +481,12 @@ function EditTaskForm({ t, task, sessionId, onDone }: { t: T; task: TaskView; se
           className={styles.input}
           value={form.value}
           placeholder={valuePlaceholder}
+          aria-label={valuePlaceholder}
+          disabled={busy}
           onChange={(e) => setForm({ ...form, value: e.target.value })}
         />
       </div>
-      {error ? <div className={styles.error}>{error}</div> : null}
+      {error ? <div className={styles.error} role="alert">{error}</div> : null}
       <div className={styles.formRow}>
         <button
           type="button"
@@ -464,9 +494,9 @@ function EditTaskForm({ t, task, sessionId, onDone }: { t: T; task: TaskView; se
           disabled={busy || form.prompt.trim() === '' || form.value.trim() === ''}
           onClick={() => void submit()}
         >
-          {t('action.save')}
+          {t(busy ? 'action.pending' : 'action.save')}
         </button>
-        <button type="button" className={styles.ghostButton} onClick={onDone}>
+        <button type="button" className={styles.ghostButton} disabled={busy} onClick={onDone}>
           {t('action.cancel')}
         </button>
       </div>
@@ -474,60 +504,95 @@ function EditTaskForm({ t, task, sessionId, onDone }: { t: T; task: TaskView; se
   )
 }
 
-function CronPanel({ t, tab, sessionId, visible }: { t: T; tab: DrawerTab; sessionId: string; visible: boolean }) {
+function CronPanel({ t, tab, sessionId, visible, signal }: { t: T; tab: DrawerTab; sessionId: string; visible: boolean; signal?: AbortSignal }) {
   const [tasks, setTasks] = useState<TaskView[]>([])
   const [records, setRecords] = useState<RunRecord[]>([])
   const [error, setError] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const generation = useRef(0)
-  const live = useRef(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [pending, setPending] = useState<Set<string>>(new Set())
+  const pendingRef = useRef(new Set<string>())
+  const leaseRef = useRef<ReturnType<typeof createRequestLease> | null>(null)
+  const ownerRef = useRef(sessionId)
+  ownerRef.current = sessionId
 
   const refresh = useCallback(async () => {
-    if (!visible || !live.current) return
-    const request = ++generation.current
+    const lease = leaseRef.current
+    if (!visible || !lease?.alive()) return
+    const request = lease.begin()
+    setLoading(true)
     try {
       const [listResult, historyResult] = await Promise.all([
-        api<{ tasks: TaskView[] }>('list', { sessionId }),
-        api<{ records: RunRecord[] }>('history', { limit: 50, sessionId }),
+        api<{ tasks: TaskView[] }>('list', { sessionId }, lease.signal),
+        api<{ records: RunRecord[] }>('history', { limit: 50, sessionId }, lease.signal),
       ])
-      if (request !== generation.current) return
+      if (!lease.accepts(request)) return
       setTasks(listResult.tasks)
       setRecords(historyResult.records)
       setEnabledCount(listResult.tasks.filter((task) => task.enabled).length, sessionId)
+      setLoaded(true)
       setError('')
     } catch (err) {
-      if (request === generation.current) setError(err instanceof Error ? err.message : String(err))
+      if (lease.accepts(request)) setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      if (lease.accepts(request)) setLoading(false)
     }
   }, [sessionId, visible])
 
   useEffect(() => {
-    if (!visible) return
-    live.current = true
+    setEditingId(null)
+    setDeletingId(null)
+    pendingRef.current = new Set()
+    setPending(new Set())
+    if (!visible || signal?.aborted) return
+    const lease = createRequestLease(sessionId, () => ownerRef.current, signal)
+    leaseRef.current = lease
     void refresh()
     const timer = setInterval(() => void refresh(), 10_000)
-    return () => { live.current = false; generation.current++; clearInterval(timer) }
-  }, [refresh, visible])
+    const stop = () => { lease.stop(); clearInterval(timer) }
+    signal?.addEventListener('abort', stop, { once: true })
+    return () => { stop(); signal?.removeEventListener('abort', stop) }
+  }, [refresh, sessionId, visible, signal])
 
   const act = async (method: string, payload: Record<string, unknown>) => {
+    const lease = leaseRef.current
+    const id = String(payload.id)
+    if (!visible || !lease?.alive() || pendingRef.current.has(id)) return
+    pendingRef.current.add(id)
+    setPending(new Set(pendingRef.current))
+    setError('')
     try {
-      await api(method, { ...payload, sessionId })
+      await api(method, { ...payload, sessionId }, lease.signal)
+      if (!lease.alive()) return
+      setDeletingId(null)
       await refresh()
     } catch (err) {
-      if (live.current) setError(err instanceof Error ? err.message : String(err))
+      if (lease.alive()) setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      if (lease.alive()) {
+        pendingRef.current.delete(id)
+        setPending(new Set(pendingRef.current))
+      }
     }
   }
 
   return (
     <>
-      {error ? <div className={styles.error}>{error}</div> : null}
-      <div className={styles.body}>
+      {error ? <div className={styles.error} role="alert">
+        <span>{t('panel.error', { message: error })}</span>
+        <button type="button" className={styles.action} disabled={loading} onClick={() => void refresh()}>{t('action.retry')}</button>
+      </div> : null}
+      <div className={styles.body} aria-busy={loading}>
+        {!loaded && loading ? <div className={styles.empty} role="status">{t('panel.loading')}</div> : null}
         {tab === 'tasks' ? (
           <div className={styles.list}>
-            {tasks.length === 0 ? <div className={styles.empty}>{t('tasks.empty')}</div> : null}
+            {loaded && !error && tasks.length === 0 ? <div className={styles.empty}>{t('tasks.empty')}</div> : null}
             {tasks.map((task) => (
               <div key={task.id} className={task.enabled ? styles.row : styles.rowDisabled}>
                 {editingId === task.id ? (
-                  <EditTaskForm t={t} task={task} sessionId={sessionId} onDone={() => { setEditingId(null); void refresh() }} />
+                  <EditTaskForm t={t} task={task} sessionId={sessionId} signal={leaseRef.current?.signal} onDone={() => { setEditingId(null); void refresh() }} />
                 ) : (
                   <>
                     <div className={styles.rowHead}>
@@ -545,24 +610,32 @@ function CronPanel({ t, tab, sessionId, visible }: { t: T; tab: DrawerTab; sessi
                       <span>{scheduleText(task, t)}</span>
                       <span>{t('task.next', { time: formatTime(task.nextRunAt) })}</span>
                     </div>
-                    <div className={styles.actions}>
-                      <button type="button" className={styles.action} onClick={() => void act('run', { id: task.id })}>
+                    <div className={styles.actions} aria-busy={pending.has(task.id)}>
+                      <button type="button" className={styles.action} disabled={pending.has(task.id)} onClick={() => void act('run', { id: task.id })}>
                         {t('action.run')}
                       </button>
-                      <button type="button" className={styles.action} onClick={() => void act('toggle', { id: task.id, enabled: !task.enabled })}>
+                      <button type="button" className={styles.action} disabled={pending.has(task.id)} onClick={() => void act('toggle', { id: task.id, enabled: !task.enabled })}>
                         {task.enabled ? t('action.pause') : t('action.resume')}
                       </button>
                       {task.origin === 'dynamic' ? (
                         <>
-                          <button type="button" className={styles.action} onClick={() => setEditingId(task.id)}>
+                          <button type="button" className={styles.action} disabled={pending.has(task.id)} onClick={() => { setDeletingId(null); setEditingId(task.id) }}>
                             {t('action.edit')}
                           </button>
-                          <button type="button" className={styles.actionDanger} onClick={() => void act('remove', { id: task.id })}>
+                          <button type="button" className={styles.actionDanger} disabled={pending.has(task.id)} aria-expanded={deletingId === task.id} onClick={() => setDeletingId(task.id)}>
                             {t('action.remove')}
                           </button>
                         </>
                       ) : null}
+                      {pending.has(task.id) ? <span className={styles.meta} role="status">{t('action.pending')}</span> : null}
                     </div>
+                    {deletingId === task.id ? <div className={styles.confirm} role="group" aria-label={t('task.confirmRemove')}>
+                      <span>{t('task.confirmRemove')}</span>
+                      <div className={styles.actions}>
+                        <button type="button" className={styles.actionDanger} disabled={pending.has(task.id)} onClick={() => void act('remove', { id: task.id })}>{t('action.confirmRemove')}</button>
+                        <button type="button" className={styles.action} disabled={pending.has(task.id)} onClick={() => setDeletingId(null)}>{t('action.cancel')}</button>
+                      </div>
+                    </div> : null}
                   </>
                 )}
               </div>
@@ -570,7 +643,7 @@ function CronPanel({ t, tab, sessionId, visible }: { t: T; tab: DrawerTab; sessi
           </div>
         ) : (
           <div className={styles.list}>
-            {records.length === 0 ? <div className={styles.empty}>{t('history.empty')}</div> : null}
+            {loaded && !error && records.length === 0 ? <div className={styles.empty}>{t('history.empty')}</div> : null}
             {records.map((record) => (
               <div key={record.id} className={styles.row}>
                 <div className={styles.rowHead}>
@@ -598,6 +671,7 @@ function CronPanel({ t, tab, sessionId, visible }: { t: T; tab: DrawerTab; sessi
 interface SlotProps {
   t?: T
   sessionId?: string
+  useSessions?: UseSessions
 }
 
 function PanelHeader({ t, onClose }: { t: T; onClose: () => void }) {
@@ -610,7 +684,7 @@ function PanelHeader({ t, onClose }: { t: T; onClose: () => void }) {
   )
 }
 
-function PanelSettings({ t, sessionId, visible, embedded }: { t: T; sessionId: string; visible: boolean; embedded: boolean }) {
+function PanelSettings({ t, sessionId, visible }: { t: T; sessionId: string; visible: boolean }) {
   const { prefs: currentPrefs } = useDrawerState()
   const ref = useRef<HTMLDetailsElement>(null)
   useEffect(() => {
@@ -689,7 +763,7 @@ function PanelSettings({ t, sessionId, visible, embedded }: { t: T; sessionId: s
         </svg>
       </summary>
       <div className={styles.settingsBody}>
-        {embedded ? <div className={styles.owner}>{t('panel.owner', { id: sessionId })}</div> : null}
+        <div className={styles.owner}>{t('panel.owner', { id: sessionId })}</div>
         <h3 className={styles.settingsTitle}>{t('prefs.title')}</h3>
         <div className={styles.settingsControls}>
           <button type="button" className={styles.headText} title={t('prefs.system')} aria-pressed={currentPrefs.system} onClick={() => void toggleSystem()}>{t('prefs.systemShort')}</button>
@@ -701,15 +775,18 @@ function PanelSettings({ t, sessionId, visible, embedded }: { t: T; sessionId: s
   )
 }
 
-function PanelContent({ t, sessionId, visible, onClose }: { t: T; sessionId: string; visible: boolean; onClose?: () => void }) {
+function PanelContent({ t, sessionId, visible, onClose, title, signal }: { t: T; sessionId: string; visible: boolean; onClose?: () => void; title?: string; signal?: AbortSignal }) {
   useDrawerState()
   const view = sessionView(sessionId)
+  const owner = title || sessionTitles.get(sessionId)
+  const ownerLine = t(sessionId === activeSessionId ? 'panel.currentOwner' : 'panel.pinnedOwner', { title: owner || t('panel.titleUnavailable') })
   return (
     <>
-      {onClose ? <>
-        <PanelHeader t={t} onClose={onClose} />
-        <div className={styles.owner}>{t('panel.owner', { id: sessionId })}</div>
-      </> : null}
+      {onClose ? <PanelHeader t={t} onClose={onClose} /> : null}
+      <div className={styles.owner}>{owner ? ownerLine : <details open>
+        <summary>{ownerLine}</summary>
+        <div>{t('panel.owner', { id: sessionId })}</div>
+      </details>}</div>
       <div className={styles.toolbar}>
         <div className={styles.tabs} role="group" aria-label={t('panel.views')}>
           <button type="button" className={view.tab === 'tasks' ? styles.tabActive : styles.tab}
@@ -717,14 +794,14 @@ function PanelContent({ t, sessionId, visible, onClose }: { t: T; sessionId: str
           <button type="button" className={view.tab === 'history' ? styles.tabActive : styles.tab}
             aria-pressed={view.tab === 'history'} onClick={() => setDrawerTab('history', sessionId)}>{t('tab.history')}</button>
         </div>
-        <PanelSettings key={sessionId} t={t} sessionId={sessionId} visible={visible} embedded={!onClose} />
+        <PanelSettings key={sessionId} t={t} sessionId={sessionId} visible={visible} />
       </div>
-      <CronPanel key={sessionId} t={t} tab={view.tab} sessionId={sessionId} visible={visible} />
+      <CronPanel key={sessionId} t={t} tab={view.tab} sessionId={sessionId} visible={visible} signal={signal} />
     </>
   )
 }
 
-function StandalonePanel({ t, sessionId, children }: { t: T; sessionId: string; children: ReactNode }) {
+function StandalonePanel({ t, sessionId, children, title }: { t: T; sessionId: string; children: ReactNode; title?: string }) {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const dialog = ref.current!
@@ -743,27 +820,62 @@ function StandalonePanel({ t, sessionId, children }: { t: T; sessionId: string; 
         const box = event.currentTarget.getBoundingClientRect()
         if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) setDrawerOpen(false)
       }}>
-      <PanelContent t={t} sessionId={sessionId} visible onClose={() => setDrawerOpen(false)} />
+      <PanelContent t={t} sessionId={sessionId} title={title} visible onClose={() => setDrawerOpen(false)} />
       {children}
     </dialog>
   )
 }
 
+function usePanelConsumer(sessionId: string, visible: boolean, paneId?: string, tabId?: string, signal?: AbortSignal) {
+  useEffect(() => {
+    const release = panelConsumers.add({ sessionId, visible, paneId, tabId, signal })
+    if (visible && !signal?.aborted) sessionView(sessionId).unread = 0
+    storeNotify()
+    const abort = () => { release(); storeNotify() }
+    signal?.addEventListener('abort', abort, { once: true })
+    return () => { signal?.removeEventListener('abort', abort); release(); storeNotify() }
+  }, [sessionId, visible, paneId, tabId, signal])
+}
+
 function CronSidebarPanel({ scope, visible, t }: SidebarProps & { t: T }) {
   const sessionId = scope.sessionId
-  useEffect(() => {
-    const view = sessionView(sessionId)
-    view.visible = visible
-    if (visible) view.unread = 0
-    storeNotify()
-    return () => { view.visible = false; storeNotify() }
-  }, [sessionId, visible])
+  usePanelConsumer(sessionId, visible)
   return <section className={styles.sidebarPanel} aria-label={t('trigger.aria')}>
     <PanelContent t={t} sessionId={sessionId} visible={visible} />
   </section>
 }
 
-function CronDrawer({ t }: SlotProps) {
+function CronNativePanel({ sessionId, useTabInfo, useSessions, t = fallbackT }: NativeBodyProps & { t?: T }) {
+  const { panel, tab } = useTabInfo()
+  const current = useSessions(sessions => sessions.current)
+  const title = useSessions(sessions => ownerTitle(sessions, sessionId, '', t('panel.untitled')))
+  const aborted = useSyncExternalStore(useCallback(listener => {
+    tab.signal.addEventListener('abort', listener)
+    return () => tab.signal.removeEventListener('abort', listener)
+  }, [tab.signal]), () => tab.signal.aborted)
+  const visible = tab.visible && sessionId === current && !aborted
+  usePanelConsumer(sessionId, visible, panel.id, tab.id, tab.signal)
+  useEffect(() => {
+    sessionTitles.set(sessionId, title)
+    storeNotify()
+  }, [sessionId, title])
+  useEffect(() => {
+    const params = tab.navigation.params as { view?: unknown } | undefined
+    if (tab.signal.aborted || sessionId !== current) return
+    if (panelConsumers.consumeNavigation(sessionId, tab.id, tab.navigation.revision)
+      && (params?.view === 'tasks' || params?.view === 'history')) setDrawerTab(params.view, sessionId)
+  }, [sessionId, current, tab.id, tab.navigation.revision, tab.signal])
+  return <section className={styles.sidebarPanel} data-cron-native="" aria-label={t('trigger.aria')}>
+    <PanelContent t={t} sessionId={sessionId} title={title} visible={visible} signal={tab.signal} />
+  </section>
+}
+
+function ResolvedStandalonePanel({ useSessions, ...props }: { useSessions: UseSessions; t: T; sessionId: string; children: ReactNode }) {
+  const title = useSessions(sessions => ownerTitle(sessions, props.sessionId, '', props.t('panel.untitled')))
+  return <StandalonePanel {...props} title={title} />
+}
+
+function CronDrawer({ t, useSessions }: SlotProps) {
   const tr = t ?? fallbackT
   const { open, sessionId, drawerSessionId: owner, toasts } = useDrawerState()
   useCronWatcher(sessionId)
@@ -773,7 +885,9 @@ function CronDrawer({ t }: SlotProps) {
   // Modal dialogs make body siblings inert; keep notifications in the active
   // top-layer context so test/completion toasts remain visible and clickable.
   return createPortal(open && owner
-    ? <StandalonePanel key={owner} t={tr} sessionId={owner}>{notifications}</StandalonePanel>
+    ? useSessions
+      ? <ResolvedStandalonePanel key={owner} useSessions={useSessions} t={tr} sessionId={owner}>{notifications}</ResolvedStandalonePanel>
+      : <StandalonePanel key={owner} t={tr} sessionId={owner}>{notifications}</StandalonePanel>
     : notifications, document.body)
 }
 
@@ -782,9 +896,10 @@ function CronDrawer({ t }: SlotProps) {
 function CronAction({ t, sessionId }: SlotProps) {
   const tr = t ?? fallbackT
   const state = useDrawerState()
-  const { count, unread, visible } = sessionView(sessionId ?? null)
+  const { count, unread } = sessionView(sessionId ?? null)
+  const visible = sessionId ? panelConsumers.visible(sessionId) : false
   // Presentation is constant; open state still follows the actual destination.
-  const open = (visible && sidebar !== null) || (state.open && state.drawerSessionId === sessionId)
+  const open = visible || (state.open && state.drawerSessionId === sessionId)
   const description = tr('trigger.summary', { count, unread })
   useEffect(() => {
     setActiveSession(sessionId ?? null)
@@ -815,6 +930,18 @@ function CronAction({ t, sessionId }: SlotProps) {
   )
 }
 
+// Standard hooks are injected props, not imports from a newer Core module.
+function SessionCronAction({ useSessions, ...props }: SlotProps & { useSessions: UseSessions }) {
+  const title = useSessions(sessions => ownerTitle(sessions, props.sessionId ?? '', '', (props.t ?? fallbackT)('panel.untitled')))
+  useEffect(() => {
+    if (props.sessionId) { sessionTitles.set(props.sessionId, title); storeNotify() }
+  }, [props.sessionId, title])
+  return <CronAction {...props} />
+}
+function CronHeaderAction(props: SlotProps) {
+  return props.useSessions ? <SessionCronAction {...props} useSessions={props.useSessions} /> : <CronAction {...props} />
+}
+
 /** Client plugin body: dictionaries, styles, header trigger, and the drawer. */
 export function apply(ctx: any) {
   ctx.effect(() => ctx.locale.register('cron', { zh, en }), 'dsh-cron: dictionaries')
@@ -825,6 +952,11 @@ export function apply(ctx: any) {
     document.head.append(tag)
     return () => tag.remove()
   }, 'dsh-cron: styles')
+  registerNativeSidebar(ctx, CronNativePanel, () => ctx.locale.bind('cron')('trigger.aria'), service => {
+    nativeSidebar = service
+    if (!service) panelConsumers.clearNative()
+    storeNotify()
+  })
   // Optional injection watches service arrival/removal without making Cron wait
   // for Better Sidebar. Registration and bridge ownership follow this Fiber.
   ctx.inject(['betterSidebar'], (inner: any) => {
@@ -856,6 +988,9 @@ export function apply(ctx: any) {
   })
   ctx.effect(() => () => {
     sidebar = null
+    nativeSidebar = null
+    panelConsumers.clear()
+    sessionTitles.clear()
     drawerOpen = false
     activeSessionId = drawerSessionId = null
     sessionViews.clear()
@@ -872,7 +1007,7 @@ export function apply(ctx: any) {
       order: -50,
       locale: 'cron',
       inject: (sessionId: string) => ({ sessionId }),
-    }, CronAction))
+    }, CronHeaderAction))
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register({
       name: 'shell.overlay',

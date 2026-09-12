@@ -2,7 +2,7 @@
 
 **让 DSH 按时回到创建任务的会话，继续替你工作。**
 
-用自然语言创建定时任务，在 Better Sidebar 中管理任务和执行记录；没有兼容的 Sidebar 时，自动回退到独立面板。到点使用原会话的模型配置执行，结果仍回到原会话。
+用自然语言创建定时任务，在 **DSH 官方 Sidebar 的当前会话标签**中管理任务和执行记录，边聊天边查看进展。原生能力不可用时保留兼容的 Better Sidebar / 独立面板回退。到点使用原会话的模型配置执行，结果仍回到原会话；不新增跨会话任务总览。
 
 [![CI](https://github.com/cloga/dsh-cron/actions/workflows/ci.yml/badge.svg)](https://github.com/cloga/dsh-cron/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cloga/dsh-cron)](https://github.com/cloga/dsh-cron/releases/latest)
@@ -11,7 +11,7 @@
 
 [快速安装](#安装与升级) · [使用方式](#使用方式) · [界面预览](#界面预览) · [常见问题](#常见问题) · [开发与发布](#开发与发布)
 
-**English:** Session-bound scheduled prompts for DeepSeek Harness. Create tasks in chat, manage them in an optional Better Sidebar tab or a standalone dialog, and receive results in the owning conversation. Ships prebuilt client code; no install scripts. Important changes are version-gated and automatically released after main-branch CI succeeds.
+**English:** Session-bound scheduled prompts for DeepSeek Harness. Create tasks in chat, manage the current session's tasks/history in the official native Sidebar, and receive results in the owning conversation. The header clock selects the same native destination without blocking chat; older or unavailable native surfaces retain the optional Better Sidebar / standalone fallback. No cross-session task center or scheduling-policy change. Ships prebuilt client code; no install scripts. Important changes are version-gated and automatically released after main-branch CI succeeds.
 
 ## 核心能力
 
@@ -19,7 +19,7 @@
 | --- | --- |
 | 自然语言调度 | 一次性、固定间隔、每天、标准五段 cron；`daily` / `cron` 支持 IANA 时区 |
 | Sidebar 内管理 | 查看任务、编辑、立即执行、暂停/恢复、删除，并切换到执行记录 |
-| 可选集成与回退 | 复用已有 Cron 标签页，展开所在面板；服务缺失、禁用或不兼容时使用独立 modal |
+| 原生优先与兼容回退 | 时钟选中当前会话已有的原生 Cron 标签，复用官方面板控件；缺少原生能力时再选择兼容的 Better Sidebar 或独立 modal，不重新启用停用插件 |
 | 严格会话归属 | 工具和 HTTP 操作按 root Session 隔离；原会话暂不可用时保留待执行任务，不投递给其他会话 |
 | 执行可追踪 | 记录投递、运行、完成、失败及中断状态，提供耗时与结果摘要 |
 | 多层通知 | 未读徽标、页面 Toast、提示音、浏览器通知，以及受平台支持的 Host 原生通知 |
@@ -27,33 +27,36 @@
 
 ## 界面预览
 
-> 以下图片使用 **v0.4.6 的真实 Cron Client bundle 和 React 组件**渲染。外围页面、Better Sidebar 容器及任务 API 均为隔离演示，使用示例数据；不是用户真实会话截图，也不代表本机部署已更新。可点击图片查看原尺寸。[截图来源与复现方式](docs/images/README.md)
+### v0.5.0：当前会话的官方 Sidebar 标签
 
-### 定时任务：融入 Sidebar，不再另占一个右侧抽屉
+```text
+会话头部的时钟 → 当前会话的「定时任务」原生标签
+                       ├─ 任务：查看 / 编辑 / 运行 / 暂停 / 确认删除
+                       ├─ 执行记录
+                       └─ 会话详情与通知设置
+聊天保持可用；关闭、分栏、浮窗、全屏和尺寸由官方 Sidebar 管理。
+```
 
-![深色组件演示：Sidebar 内的定时任务标签页，包含任务状态、下次执行时间和管理操作](docs/images/sidebar-tasks-dark.png)
+时钟保持固定大小，悬停提示和读屏描述保留任务数量与未读信息。Cron 内容不重复原生标题/关闭控件；显示可识别的会话标题，完整 ID 放在详情中。未取得标题时明确显示“标题暂不可用”并展开身份详情，不能用一个虚构标题掩盖旧通知所属的会话。
 
-从会话头部的 **「定时任务 / Scheduled tasks」** 入口进入；已有标签页会被复用。**v0.4.6 起，顶部入口始终是固定大小的时钟图标**：不论当前选择 Cron、Files、子代理 Tasks，或侧栏关闭/不可用，都不再切换成文字。悬停提示和读屏描述保留任务数量与未读信息；未读角标不会撑宽按钮。嵌入内容只保留一行「任务 / 执行记录 / 齿轮」工具栏，不再重复外层页签标题和常驻 Session ID。所在的右侧、底部或窄屏面板仍会按需展开，已分离的浮窗不会额外展开其他面板。
+隐藏、卸载或结束的标签停止面板轮询；过期响应不覆盖其他会话。切回已有标签不重复创建页签，任务与历史选择保持会话归属。读取失败提供重试；任务操作有进行中反馈，删除先确认。操作锁是单面板的交互保护，不是后台跨面板全局排他锁。
 
 <details>
-<summary><strong>查看执行记录（浅色主题）</strong></summary>
+<summary><strong>查看可复现的组件集成测试图（不是完整官方 Shell 截图）</strong></summary>
 
-![浅色组件演示：定时任务的执行记录，展示完成与失败状态、耗时及结果摘要](docs/images/sidebar-history-light.png)
+> 以下图片使用 **v0.5.0 的实际预构建 Cron Client 和 React**，驱动未修改的 Core rc.2 registry/controller/store。外部聊天、标签栏和布局是明确标记的 **SYNTHETIC CONTAINER**，API/会话数据为测试样本；不代表真实 GUI 已安装或激活，也不能代替官方完整 Shell 的视觉验收。[来源与复现方式](docs/images/README.md)
 
-任务与历史属于各自的 Session；隐藏标签页停止面板轮询，过期响应不会覆盖切换后的会话。完整 Session ID 和通知偏好可从右侧齿轮「面板设置」查看。设置菜单支持 Escape、点击外部及切换面板时关闭；短分屏中菜单内部可滚动。独立弹窗仍始终显示完整会话归属，尤其是来自其他会话的旧通知。
+![合成容器中的实际 Cron 内容：浅色任务列表与保持可用的测试聊天](docs/images/native-tasks-light.png)
+
+![合成容器中的实际 Cron 内容：深色历史列表和会话 B 归属](docs/images/native-history-dark.png)
+
+![窄容器压力测试：错误反馈及重试；非官方窄屏全屏布局](docs/images/native-narrow-error.png)
 
 </details>
 
-<details>
-<summary><strong>查看没有 Sidebar 时的独立面板</strong></summary>
+原生能力不可用时，兼容的 Better Sidebar 仍可承载内容；否则保留浏览器原生 modal/top-layer 回退，支持 Escape、点击外部关闭和焦点恢复。跨会话旧通知使用注明原会话的安全回退，不静默切换当前会话。
 
-![组件演示：兼容 Sidebar 不可用时，Cron 使用原生 modal 独立面板](docs/images/standalone-panel.png)
-
-独立面板使用浏览器原生 modal/top layer，支持 Escape、点击外部关闭和焦点恢复，不再靠无限提高 `z-index` 与其他插件争抢层级。
-
-</details>
-
-**版本提示：** 可选 Sidebar 集成从 **v0.4.4** 起发布；v0.4.3 中与 Sidebar 相关的改动仅为收回按钮兼容修复。Better Sidebar 的 **Tasks 子代理页不是 Cron 定时任务页**，也不会因为刷新旧版本而自动变成定时任务页。
+**版本提示：** Better Sidebar 可选集成从 v0.4.4 起发布，官方原生 Sidebar 集成从 **v0.5.0** 起提供。Better Sidebar 的子代理 **Tasks** 页不是 Cron 定时任务页，刷新旧版本也不会取得新功能。
 
 ## 安装与升级
 
@@ -62,15 +65,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.4.8
+dsh plugin --profile web add github:cloga/dsh-cron#v0.5.0
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.4.8 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.4.8) 下载 `dsh-cron-0.4.8.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.5.0 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.5.0) 下载 `dsh-cron-0.5.0.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.4.8.tgz
+dsh plugin --profile web add ./dsh-cron-0.5.0.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -82,7 +85,7 @@ dsh plugin --profile web add ./dsh-cron-0.4.8.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.8'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.0'
 ```
 
 </details>
@@ -95,7 +98,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.4.8'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.4.8`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.5.0`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 
@@ -126,7 +129,7 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 
 ### 用面板管理和追踪
 
-点击会话头部的时钟图标（提示为「定时任务 / Scheduled tasks」），在 **任务** 与 **执行记录** 间切换。兼容的 Better Sidebar 会承载面板；否则自动使用独立面板。跨会话的旧通知会打开注明原 Session 的独立面板，不把原会话任务塞进当前侧栏，也不会静默切换会话。
+点击会话头部的时钟图标（提示为「定时任务 / Scheduled tasks」），在 **任务** 与 **执行记录** 间切换。v0.5.0 优先使用官方原生 Sidebar；原生能力不可用时才尝试兼容的 Better Sidebar，最后回退独立面板。时钟复用当前会话已观察到的原生标签所在面板，不新增 Guide 卡片，保留 Core 的 Files/Guide 初次打开行为。跨会话旧通知仍使用注明原会话的独立面板，不把 A 会话任务塞进 B 会话侧栏，也不会静默切换会话。
 
 模型工具：`cron_list`、`cron_add`、`cron_update`、`cron_remove`、`cron_history`。它们只接受当前 live root Session 的所有权；子代理或无 Agent 的调用会被拒绝。
 
@@ -147,7 +150,8 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 | 项目 | 支持范围 |
 | --- | --- |
 | DSH Core | 保留受控 `0.1.1-rc.2`、官方 `0.1.2-rc.1`、`0.1.3-alpha.1`；v0.4.7 新增精确 `0.1.5-alpha.1` / `0.1.5-alpha.2` 冷恢复读结果适配，v0.4.8 新增官方精确 `0.1.5-rc.2`。下文区分源码合同、fixture 与真实 Host 验证；不承诺整个 0.1.5 系列兼容 |
-| Better Sidebar | **可选**；按 `0.18.0` 的公开 Client Service 合同验证，并进行版本/能力检测；缺失、不兼容、禁用或卸载时回退 |
+| 官方 Sidebar | v0.5.0 使用公开 registry + keyed body Slot；精确 `0.1.5-alpha.1` / `alpha.2` / `rc.2` 的原生模型合同可执行验证，缺少原生服务的旧基线走回退，不推断其他版本 |
+| Better Sidebar | **可选的次级回退**；按 `0.18.0` 的公开 Client Service 合同验证；不为原生集成重新启用它，缺失/禁用时仍可独立面板 |
 | Profile | 常驻 Web / Desktop Web；一次性 headless 进程不提供未来持续调度保证 |
 | Node.js / 开发包管理器 | `^22.19.0 || >=24.0.0` / `pnpm@11.7.0` |
 | 界面 | 中英文、亮暗主题、桌面和窄屏；使用 DSH 主题 token |
@@ -178,7 +182,7 @@ Core 0.1.3 使用 snapshot header 与可关闭的 read handle，`read()` 返回�
 
 ## 常见问题
 
-**安装后为何看不到定时任务标签页？** 先确认安装的是 v0.4.4 或后续兼容版本，并已激活新 Client bundle；再检查 Better Sidebar 服务版本/能力以及 Cron 标签页是否启用。头部时钟入口始终保留，用它进入任务页；从 v0.4.6 起不会随页签切换在文字和图标之间变化。若条件不满足，出现独立面板是正常回退，不是数据丢失。
+**安装后为何看不到定时任务标签页？** 官方原生集成需要 v0.5.0 及其实际加载的新 Client bundle，并且当前 Core 已提供原生 registry、controller 和内容 Slot。用头部时钟进入；没有新增 Guide 卡片，因此首次打开 Sidebar 仍保留 Core 原有默认页。旧 Core 会继续使用兼容 Better Sidebar 或独立面板。不要为了获得新原生标签而重新启用 Better Sidebar，也不要把刷新旧包当作升级。
 
 **Sidebar 展开后收回按钮消失？** v0.4.3 起附带针对 `dsh-tauri 0.6.7` 全局标签选择器冲突的局部样式兼容修复，仅恢复 Better Sidebar 的原生控件，不修改左侧导航。v0.4.4 也包含该修复。
 
@@ -211,7 +215,9 @@ pnpm release:check --base origin/main  # 检查已提交的 PR 候选
 
 未设置 `DSH_CORE_PATH` 时只验证包声明并显式跳过源码检查。CI 在 Windows/Linux、Node 22.19/24 上检查五个精确基线。源码验证检查真实返回类型；上述三个精确 0.1.5 版本额外验证 header utilities/session 与 shell overlay/root 的 Slot 声明，并执行各自 Git 源码的 JSONL handle 类接入 Cron 冷恢复（fake storage/AgentRegistry），覆盖两种 eventState、空/非空事件、current/primed 切片、preset/model、幂等关闭和关闭后拒绝读取。rc.2 的 persistence 与 JSONL handle 源码相对 alpha.2 未变，保留已有双形状运行时适配，无需 RuntimeClient 改写。这不是完整 Core 启动、JSONL 文件迁移/IO、真实模型或已安装 Host/GUI 验证，不把 API 名称检查称为全面兼容。
 
-设置 `DSH_BETTER_SIDEBAR_PATH` 指向 0.18.0 源码包后，可运行 `node tests/sidebar-contract.test.mjs` 验证真实 reducer/Cordis 合同。截图复现命令见 [图片说明](docs/images/README.md)。
+v0.5.0 的 `tests/official-sidebar-contract.test.mjs` 还执行上述三个精确 0.1.5 版本的原生 registry/controller/domain/store/dockkit planner；更旧两条源码基线没有原生 API，明确跳过原生用例而保留回退验证。浏览器用实际 Cron 构建、上述 rc.2 模型和合成容器检查导航、归属、分栏、状态与清理，并不加载完整官方 renderer 或代表用户 GUI 已更新。CI/Release 为浏览器明确提供 rc.2 源码，不能以缺少源码的跳过结果代替这一门禁。
+
+设置 `DSH_BETTER_SIDEBAR_PATH` 指向 0.18.0 源码包后，可运行 `node tests/sidebar-contract.test.mjs` 验证旧可选 reducer/Cordis 合同；不用安装或启用该插件。截图复现命令见 [图片说明](docs/images/README.md)。
 
 ### 重要 PR 的发布闭环
 
