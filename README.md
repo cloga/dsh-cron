@@ -65,15 +65,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.5.0
+dsh plugin --profile web add github:cloga/dsh-cron#v0.5.1
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.5.0 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.5.0) 下载 `dsh-cron-0.5.0.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.5.1 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.5.1) 下载 `dsh-cron-0.5.1.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.5.0.tgz
+dsh plugin --profile web add ./dsh-cron-0.5.1.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -85,7 +85,7 @@ dsh plugin --profile web add ./dsh-cron-0.5.0.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.0'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.1'
 ```
 
 </details>
@@ -98,7 +98,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.0'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.5.0`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.5.1`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 
@@ -132,6 +132,8 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 点击会话头部的时钟图标（提示为「定时任务 / Scheduled tasks」），在 **任务** 与 **执行记录** 间切换。v0.5.0 优先使用官方原生 Sidebar；原生能力不可用时才尝试兼容的 Better Sidebar，最后回退独立面板。时钟复用当前会话已观察到的原生标签所在面板，不新增 Guide 卡片，保留 Core 的 Files/Guide 初次打开行为。跨会话旧通知仍使用注明原会话的独立面板，不把 A 会话任务塞进 B 会话侧栏，也不会静默切换会话。
 
 模型工具：`cron_list`、`cron_add`、`cron_update`、`cron_remove`、`cron_history`。它们只接受当前 live root Session 的所有权；子代理或无 Agent 的调用会被拒绝。
+
+**v0.5.1 的冷会话只读查看：** 面板的 HTTP `list/history` 可以读取已保存、且经公开 Header 验证为 root 的原会话任务。不会为查看列表恢复 Agent、读取会话事件、消费过期时刻或修改任务状态；未知、子代理或歧义身份仍拒绝。HTTP 修改、启停、立即执行仍要求该 root Session 已加载。读失败会显示错误与重试，不会冒充“没有任务”，也无需重新创建已有任务。
 
 ### 通知与历史
 

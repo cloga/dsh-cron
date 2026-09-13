@@ -301,7 +301,8 @@ function nextRunAt(task, now, startedAt) {
     if (slot > now || (task.lastRunAt ?? 0) < slot) return slot
     return nextDailySlot(task.daily, now, task.timeZone)
   }
-  if (task.cron) return cronNext(task, startedAt)
+  // A display read must not populate the scheduler's mutable next-slot cache.
+  if (task.cron) return task.cronNext ?? nextCronSlot(task.cronParsed, task.lastRunAt ?? startedAt - 60_000, task.timeZone)
   return null
 }
 
@@ -1143,14 +1144,38 @@ export function apply(ctx, config) {
       if (!owner) throw new Error('cron HTTP request requires a live root Session owner')
       return sessionId
     }
+    // Read-only HTTP views may observe a cold root without reconstructing it.
+    // list() is the public metadata-only seam: legacy Core returns headers,
+    // Core 0.1.3/0.1.5 returns { header, revision }. Never inspect/read events,
+    // open a handle, or use a task/payload's claimed lineage as authority.
+    const httpReadOwner = async (payload) => {
+      const sessionId = requireSessionId(payload?.sessionId, 'cron HTTP request')
+      if (ctx.agents.roots().some((agent) => String(agent.session?.id) === sessionId)) return sessionId
+      const listed = await ctx.sessionPersistence.list()
+      const candidates = Array.isArray(listed) ? listed.filter((candidate) =>
+        candidate?.id === sessionId || candidate?.header?.id === sessionId) : []
+      if (candidates.length !== 1) throw new Error('cron HTTP read requires a verified root Session owner')
+      const snapshot = candidates[0]
+      const header = Object.hasOwn(snapshot, 'header') || Object.hasOwn(snapshot, 'revision') ? snapshot.header : snapshot
+      // Absence of depth means zero in the public SessionHeader contract.
+      // parentSession is fork/seed lineage, not evidence of delegation.
+      // Unknown/null/coerced lineage and conflicting identities fail closed.
+      if (header?.id !== sessionId
+        || (snapshot !== header && Object.hasOwn(snapshot, 'id'))
+        || header.origin !== undefined
+        || (header.delegationDepth !== undefined && header.delegationDepth !== 0)) {
+        throw new Error('cron HTTP read requires a verified root Session owner')
+      }
+      return sessionId
+    }
     const api = {
-      list: (payload) => ({ tasks: listTasks(httpOwner(payload)) }),
+      list: async (payload) => ({ tasks: listTasks(await httpReadOwner(payload)) }),
       add: (payload) => ({ task: addDynamicTask(payload, httpOwner(payload)) }),
       update: (payload) => ({ task: updateDynamicTask(payload?.id, payload ?? {}, httpOwner(payload)) }),
       remove: (payload) => removeDynamicTask(payload?.id, httpOwner(payload)),
       toggle: (payload) => ({ task: setTaskEnabled(payload?.id, payload?.enabled, httpOwner(payload)) }),
       run: (payload) => runTaskNow(payload?.id, httpOwner(payload)),
-      history: (payload) => ({ records: listHistory(payload?.limit, httpOwner(payload)) }),
+      history: async (payload) => ({ records: listHistory(payload?.limit, await httpReadOwner(payload)) }),
     }
 
     webCtx.effect(() => webCtx.webServer.register({

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+- Fix HTTP task/history reads for persisted root Sessions that are not currently loaded (#36). Verify only public persisted identity/lineage metadata, keep results scoped to that owner, and never wake an Agent, read Session events or write task/history data just to display the panel.
+- Preserve live-root ownership for every mutating HTTP action, manual execution and all model tools. Reject missing, subagent, malformed, duplicate or ambiguous persisted owners; fork-parent lineage alone does not make a root a subagent.
+- Keep cached and overdue cron slot display semantics without mutating scheduler caches during a read. Add synthetic read/write/Agent tripwires and the screenshot's exact cold-owner error regression for the existing loading/error/empty UI.
+- This pre-1.0 patch is a backward-compatible read-path fix on 0.5.0's native Sidebar integration, not a task migration, reactivation, scheduling change or broader Core compatibility claim. Release, installed version and live activation remain separate evidence.
+
 ## 0.5.0
 
 - Add current-session Cron integration through the official native Sidebar registry and keyed body Slot (#34). The clock selects the same native destination; Cron reuses native close, split, fullscreen and sizing rather than opening a second modal or changing the default Files/Guide entry.
