@@ -1,5 +1,6 @@
 // Standalone mock-ctx test for dsh-cron (host half). Run: node tests/host.test.mjs
-import { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs'
+import fs, { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs'
+import { syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import assert from 'node:assert/strict'
@@ -104,7 +105,8 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
     },
     agentDefaultModel: { currentSelection: () => ({ provider: 'default-provider', model: 'default-model' }) },
     on: (event, handler) => listeners.set(event, handler),
-    effect: (fn) => { disposers.push(fn()) },
+    // Read-only HTTP fixtures do not start the autonomous scheduler at all.
+    effect: (fn) => { if (!options.skipSchedulerEffects) disposers.push(fn()) },
     inject: () => {},
     tools: { register: (def) => tools.set(def.name, def) },
   }
@@ -112,6 +114,7 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
     ctx.inject = (_services, activate) => activate({
       ...ctx,
       webRuntime: { trustedHosts: [] },
+      effect: (fn) => { disposers.push(fn()) },
       webServer: { register: (route) => { routes.push(route); return () => {} } },
     })
   }
@@ -295,6 +298,12 @@ assert.equal((await callHttp(route, 'add', { id: 'http-two', prompt: 'two', ever
 assert.deepEqual((await callHttp(route, 'list', { sessionId: 'sess-1' })).body.result.tasks.map((task) => task.id), ['http-one'])
 assert.equal((await callHttp(route, 'update', { id: 'http-two', prompt: 'stolen', sessionId: 'sess-1' })).status, 400)
 assert.equal((await callHttp(route, 'remove', { id: 'http-two', sessionId: 'sess-1' })).status, 400)
+assert.equal((await callHttp(route, 'toggle', { id: 'http-two', enabled: false, sessionId: 'sess-1' })).status, 400)
+assert.equal((await callHttp(route, 'run', { id: 'http-two', sessionId: 'sess-1' })).status, 400)
+assert.equal((await callHttp(route, 'toggle', { id: 'http-one', enabled: false, sessionId: 'sess-1' })).status, 200)
+assert.equal((await callHttp(route, 'run', { id: 'http-one', sessionId: 'sess-1' })).status, 200)
+assert.deepEqual((await callHttp(route, 'history', { sessionId: 'sess-1' })).body.result.records.map(record => record.taskId), ['http-one'])
+assert.deepEqual((await callHttp(route, 'history', { sessionId: 'sess-2' })).body.result.records, [])
 assert.equal((await callHttp(route, 'history', {})).status, 400)
 assert.equal((await callHttp(route, 'update', { id: 'http-two', prompt: 'owned', sessionId: 'sess-2' })).status, 200)
 assert.equal((await callHttp(route, 'remove', { id: 'http-two', sessionId: 'sess-2' })).status, 200)
@@ -312,6 +321,167 @@ assert.equal(reloaded.length, 2, 'history survives reload')
 assert.equal(reloaded.find((r) => r.taskId === 'once').status, 'completed', 'completed status survives')
 console.log('✓ restart: no refire, history survives')
 run2.disposers.forEach((d) => d?.())
+
+// --- Issue #36: metadata-only HTTP reads of cold roots. Every file below is
+// synthetic and lives in mkdtemp(tmpdir()); no real DSH_HOME/session/HTTP access.
+// Stop scheduler effects entirely, rather than relying on racing a timer. This
+// isolates what a read request does even when an enabled one-shot is overdue.
+for (const shape of ['legacy-header', '0.1.3-snapshot', '0.1.5-snapshot']) {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-cold-http-'))
+  const taskFile = join(directory, 'tasks.json')
+  const historyFile = join(directory, 'history.jsonl')
+  const storedTasks = {
+    version: 1,
+    tasks: [
+      { id: 'cold-task', prompt: 'never execute on read', at: past, sessionId: 'sess-cold' },
+      { id: 'cold-cron', prompt: 'read-only next slot', cron: '* * * * *', timeZone: 'UTC', sessionId: 'sess-cold' },
+      { id: 'other-task', prompt: 'private other owner', every: 120, sessionId: 'sess-other' },
+      { id: 'forged-task', prompt: 'task ownership is not authority', every: 120, sessionId: 'sess-unknown' },
+      { id: 'child-task', prompt: 'not a root', every: 120, sessionId: 'sess-child' },
+      { id: 'unbound-task', prompt: 'not an owner', every: 120 },
+    ],
+    runs: { 'other-task': { lastRunAt: 1, firedAt: null } },
+    overrides: { 'other-task': false },
+  }
+  const storedHistory = [
+    { id: 'cold-old', seq: 0, taskId: 'cold-task', sessionId: 'sess-cold', status: 'completed' },
+    { id: 'cold-new', seq: 1, taskId: 'cold-task', sessionId: 'sess-cold', status: 'failed' },
+    { id: 'other-run', seq: 2, taskId: 'other-task', sessionId: 'sess-other', status: 'completed' },
+    { id: 'forged-run', seq: 3, taskId: 'forged-task', sessionId: 'sess-unknown', status: 'completed' },
+    { id: 'unbound-run', seq: 4, taskId: 'unbound-task', status: 'completed' },
+  ]
+  writeFileSync(taskFile, JSON.stringify(storedTasks))
+  writeFileSync(historyFile, storedHistory.map(record => JSON.stringify(record)).join('\n') + '\n')
+  const taskBytes = readFileSync(taskFile)
+  const historyBytes = readFileSync(historyFile)
+  const cold = makeCtx(taskFile, historyFile, [], {
+    http: true, roots: [], skipSchedulerEffects: true,
+    persistenceApi: shape === 'legacy-header' ? 'inspect' : 'handle',
+  })
+  // SessionHeader.origin has only the optional 'subagent' value, NOT 'root'.
+  // Missing delegationDepth is root (zero); parentSession is a root fork too.
+  const rootHeader = Object.freeze({ id: 'sess-cold', cwd: directory })
+  const wrap = header => shape === 'legacy-header' ? header : Object.freeze({ header, revision: 'fixture-revision' })
+  let listed = Object.freeze([wrap(rootHeader), wrap(Object.freeze({ id: 'sess-child', origin: 'subagent', delegationDepth: 1 }))])
+  let listCalls = 0
+  cold.ctx.sessionPersistence.list = async () => { listCalls++; return listed }
+  const forbiddenCalls = []
+  const forbid = name => () => { forbiddenCalls.push(name); throw new Error(`read attempted ${name}`) }
+  cold.ctx.agents.resume = forbid('agents.resume')
+  cold.ctx.agentPresets.mount = forbid('agentPresets.mount')
+  cold.mockAgent.followup = forbid('followup')
+  cold.ctx.agentDefaultModel.currentSelection = forbid('model selection')
+  for (const method of ['open', 'inspect', 'load', 'prepare', 'create', 'append']) {
+    cold.ctx.sessionPersistence[method] = forbid(`persistence.${method}`)
+  }
+  // Trap the plugin's filesystem writes, including a same-bytes rewrite. Restore
+  // built-in bindings before cleanup; other test processes are unaffected.
+  const originalFs = new Map(['writeFileSync', 'renameSync', 'mkdirSync'].map(name => [name, fs[name]]))
+  for (const name of originalFs.keys()) fs[name] = forbid(`fs.${name}`)
+  syncBuiltinESMExports()
+  try {
+    const coldRoute = cold.routes[0]
+    assert.equal(cold.disposers.length, 1, 'only the fake HTTP route effect runs, no scheduler timers')
+    const list = await callHttp(coldRoute, 'list', { sessionId: 'sess-cold' })
+    assert.equal(list.status, 200, shape)
+    assert.equal(list.body.ok, true)
+    assert.deepEqual(list.body.result.tasks.map(task => task.id), ['cold-task', 'cold-cron'])
+    assert.ok(list.body.result.tasks.every(task => task.sessionId === 'sess-cold'))
+    const overdue = list.body.result.tasks[0]
+    assert.equal(overdue.nextRunAt, past, 'read preserves an overdue slot')
+    assert.equal(overdue.lastRunAt, null)
+    assert.equal(overdue.firedAt, null)
+    assert.equal(overdue.enabled, true)
+    const allHistory = await callHttp(coldRoute, 'history', { sessionId: 'sess-cold' })
+    assert.equal(allHistory.status, 200)
+    assert.deepEqual(allHistory.body.result.records.map(record => record.id), ['cold-new', 'cold-old'])
+    const limited = await callHttp(coldRoute, 'history', { sessionId: 'sess-cold', limit: 1 })
+    assert.deepEqual(limited.body.result.records.map(record => record.id), ['cold-new'], 'filter before limiting')
+    assert.deepEqual((await callHttp(coldRoute, 'list', { sessionId: 'sess-cold' })).body, list.body, 'repeat reads do not consume or change tasks')
+
+    for (const method of ['list', 'history']) {
+      for (const payload of [null, {}, { sessionId: '' }, { sessionId: 7 },
+        { sessionId: 'sess-unknown', id: 'forged-task', ownerSessionId: 'sess-cold', header: rootHeader, origin: undefined, delegationDepth: 0 },
+        { sessionId: 'sess-child', id: 'cold-task', ownerSessionId: 'sess-cold', header: rootHeader, delegationDepth: 0 },
+        { id: 'cold-task', ownerSessionId: 'sess-cold', header: rootHeader }]) {
+        const rejected = await callHttp(coldRoute, method, payload)
+        assert.equal(rejected.status, 400, `${shape} ${method} rejects missing/unknown/subagent/forged owner`)
+        assert.equal(rejected.body.ok, false)
+        assert.equal(rejected.body.result, undefined, 'no leaked results')
+      }
+    }
+    const beforeMutations = listCalls
+    for (const method of ['add', 'update', 'remove', 'toggle', 'run']) {
+      const rejected = await callHttp(coldRoute, method, {
+        sessionId: 'sess-cold', id: 'cold-task', prompt: 'must not mutate', every: 120, enabled: false,
+      })
+      assert.equal(rejected.status, 400, `${method} remains live-root guarded`)
+      assert.match(rejected.body.error.message, /live root Session owner/)
+    }
+    for (const [name, tool] of cold.tools) {
+      await assert.rejects(tool.execute({ sessionId: 'sess-cold', id: 'cold-task', prompt: 'no', every: 120 }, {
+        agent: { session: { id: 'sess-cold' } },
+      }), /live root Session owner/, `${name} cannot use persisted HTTP authority`)
+    }
+    assert.equal(listCalls, beforeMutations, 'mutations/tools do not consult durable metadata')
+
+    for (const header of [
+      { id: 'sess-cold' }, // cwd is optional; no reconstruction is needed
+      { id: 'sess-cold', delegationDepth: 0 },
+      { id: 'sess-cold', parentSession: 'seed-parent', delegationDepth: 0 },
+      // Synthetic tripwires: metadata must not be serialized or read as events.
+      { id: 'sess-cold', toJSON() { throw new Error('serialized persistence metadata') },
+        get events() { throw new Error('read full events') } },
+    ]) {
+      listed = [wrap(Object.freeze(header))]
+      assert.equal((await callHttp(coldRoute, 'list', { sessionId: 'sess-cold' })).status, 200, 'valid public root header')
+      assert.equal((await callHttp(coldRoute, 'history', { sessionId: 'sess-cold' })).status, 200)
+    }
+    for (const badHeader of [
+      { id: 'wrong-owner' }, { id: 7 }, { id: { toString: () => 'sess-cold' } },
+      { id: 'sess-cold', origin: 'subagent' }, { id: 'sess-cold', origin: 'root' },
+      { id: 'sess-cold', origin: null },
+      ...[1, -1, 0.5, '0', null, NaN, Infinity, false, {}].map(delegationDepth => ({ id: 'sess-cold', delegationDepth })),
+    ]) {
+      listed = [wrap(Object.freeze(badHeader))]
+      for (const method of ['list', 'history']) {
+        assert.equal((await callHttp(coldRoute, method, { sessionId: 'sess-cold', header: rootHeader, delegationDepth: 0 })).status, 400, 'ambiguous identity/lineage fails closed')
+      }
+    }
+    for (const invalidList of [null, {}, [], [null], [wrap(rootHeader), wrap(rootHeader)],
+      [{ id: 'sess-cold', header: { id: 'wrong-owner' }, revision: 'x' }],
+      [{ id: 'wrong-owner', header: rootHeader, revision: 'x' }],
+      [{ id: 'sess-cold', origin: 'subagent', header: rootHeader, revision: 'x' }],
+      [{ id: 'sess-cold', header: null }], [{ id: 'sess-cold', revision: 'x' }]]) {
+      listed = invalidList
+      for (const method of ['list', 'history']) {
+        assert.equal((await callHttp(coldRoute, method, { sessionId: 'sess-cold' })).status, 400, 'missing/duplicate/conflicting metadata fails closed')
+      }
+    }
+    cold.ctx.sessionPersistence.list = async () => { throw new Error('metadata unavailable') }
+    assert.equal((await callHttp(coldRoute, 'list', { sessionId: 'sess-cold' })).status, 400, 'async rejection is caught by HTTP dispatch')
+    assert.equal((await callHttp(coldRoute, 'history', { sessionId: 'sess-cold' })).status, 400)
+    delete cold.ctx.sessionPersistence.list
+    assert.equal((await callHttp(coldRoute, 'list', { sessionId: 'sess-cold' })).status, 400, 'no metadata capability fails closed')
+    assert.equal((await callHttp(coldRoute, 'history', { sessionId: 'sess-cold' })).status, 400)
+    // A live root still succeeds without any persistence capability.
+    cold.roots.push({ session: { id: 'sess-cold' }, followup: forbid('live followup') })
+    assert.equal((await callHttp(coldRoute, 'list', { sessionId: 'sess-cold' })).status, 200)
+    assert.equal((await callHttp(coldRoute, 'history', { sessionId: 'sess-cold' })).status, 200)
+    assert.deepEqual(forbiddenCalls, [], 'no resume, mount, events, prompt, model selection, or storage writes')
+    assert.deepEqual(cold.fired, [])
+    assert.deepEqual(readFileSync(taskFile), taskBytes, 'tasks, runs and overrides stay byte-identical')
+    assert.deepEqual(readFileSync(historyFile), historyBytes, 'history stays byte-identical')
+    assert.equal(existsSync(`${taskFile}.tmp`), false)
+    assert.equal(existsSync(`${historyFile}.tmp`), false)
+  } finally {
+    for (const [name, original] of originalFs) fs[name] = original
+    syncBuiltinESMExports()
+    cold.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+  console.log(`✓ cold HTTP list/history: ${shape}, strict root metadata, session filtering, no execution/writes`)
+}
 
 // --- restart reconciles nonterminal history instead of leaving phantom runs
 const interruptedDir = mkdtempSync(join(tmpdir(), 'dsh-cron-interrupted-'))

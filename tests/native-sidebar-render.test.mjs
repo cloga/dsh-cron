@@ -44,7 +44,7 @@ test('native shared body: owners, multi-pane visibility, pending actions and sta
     requests.push({ method, payload, signal: options.signal })
     if (method === 'list' && listBarrier) await listBarrier
     if (['run', 'toggle', 'remove'].includes(method) && actionBarrier) await actionBarrier
-    if (method === 'list' && failList) return { json: async () => ({ ok: false, error: { message: 'fixture unavailable' } }) }
+    if (method === 'list' && failList) return { json: async () => ({ ok: false, error: { message: 'cron HTTP request requires a live root Session owner' } }) }
     const result = method === 'list' ? { tasks: empty ? [] : [{ id: `task-${payload.sessionId}`, sessionId: payload.sessionId, prompt: `Prompt ${payload.sessionId}`, enabled: true, origin: 'dynamic', schedule: { everySeconds: 60 }, nextRunAt: null }] }
       : method === 'history' ? { records: [] } : {}
     return { json: async () => ({ ok: true, result }) }
@@ -63,8 +63,17 @@ test('native shared body: owners, multi-pane visibility, pending actions and sta
     await click(button('Scheduled tasks'))
     assert.equal(opens.length, 1)
     assert.equal(document.querySelector('dialog'), null, 'native entry does not block chat')
-    listBarrier = new Promise(resolve => { resolveList = resolve })
+    // Reproduce the screenshot: a cold-owner HTTP rejection is not an empty list.
+    failList = true
     await act(async () => renderPane())
+    assert.ok(document.querySelector('[role="alert"]').textContent.includes('live root Session owner'))
+    assert.equal(document.querySelector('[data-cron-native]').textContent.includes('No scheduled tasks yet'), false)
+    await click(button('History', document.getElementById('pane')))
+    assert.equal(document.querySelector('[data-cron-native]').textContent.includes(t('history.empty')), false)
+    await click(button('Tasks', document.getElementById('pane')))
+    failList = false
+    listBarrier = new Promise(resolve => { resolveList = resolve })
+    await click(button('Retry'))
     assert.ok(document.querySelector('[data-cron-native]').textContent.includes('Loading scheduled tasks'))
     assert.equal(document.querySelector('[data-cron-native]').textContent.includes('No scheduled tasks yet'), false)
     assert.equal(document.querySelectorAll('[data-cron-native] .dsh-cron-drawerTitle').length, 0)
@@ -107,7 +116,8 @@ test('native shared body: owners, multi-pane visibility, pending actions and sta
     assert.equal(requests.filter(req => req.method === 'remove').length, 1)
     failList = true
     await act(async () => { for (const timer of panelTimers()) await timer.fn() })
-    assert.ok(document.querySelector('[role="alert"]').textContent.includes('fixture unavailable'))
+    assert.ok(document.querySelector('[role="alert"]').textContent.includes('live root Session owner'))
+    assert.equal(document.getElementById('float').textContent.includes('No scheduled tasks yet'), false)
     failList = false; empty = true
     await click(button('Retry'))
     assert.equal(document.querySelector('[role="alert"]'), null)
