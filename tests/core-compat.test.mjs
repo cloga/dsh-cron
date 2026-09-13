@@ -60,6 +60,8 @@ if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts')))
   const persistence = read('packages/session/session-persistence/src/index.ts')
   if (handles) {
     assert.match(persistence, /interface SessionPersistenceSnapshot[\s\S]*?readonly header: SessionHeader/)
+    assert.match(persistence, /abstract stat\(id: SessionId, options\?: SessionPersistenceStatOptions\): Promise<SessionPersistenceSnapshot \| undefined>/)
+    assert.match(persistence, /interface SessionPersistenceStatOptions[\s\S]*?readonly signal\?: AbortSignal/)
     assert.match(persistence, /abstract open\(id: SessionId, access: SessionAccess/)
     const handle = read('packages/session/session-persistence/src/handle.ts')
     assertHandleContract(handle, modern)
