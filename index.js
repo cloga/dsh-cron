@@ -37,6 +37,9 @@ const DAILY_RE = /^([01]\d|2[0-3]):([0-5]\d)$/
 const STORAGE_VERSION = 1
 const MAX_HISTORY = 500
 const EXCERPT_LENGTH = 300
+const COLD_RETRY_MIN_MS = 30_000
+const COLD_RETRY_MAX_MS = 300_000
+const MAX_COLD_RESUMES = 4
 
 const TaskSchema = Schema.object({
   id: Schema.string().description('Task id, unique across config and dynamic tasks.'),
@@ -697,6 +700,40 @@ export function apply(ctx, config) {
 
   // --- delivery --------------------------------------------------------------
 
+  const schedulerLifetime = new AbortController()
+
+  function rootSnapshotHeader(snapshot, sessionId) {
+    const header = snapshot && (Object.hasOwn(snapshot, 'header') || Object.hasOwn(snapshot, 'revision'))
+      ? snapshot.header : snapshot
+    if (header?.id !== sessionId
+      || (snapshot !== header && Object.hasOwn(snapshot, 'id'))
+      || header.origin !== undefined
+      || (header.delegationDepth !== undefined && header.delegationDepth !== 0)) {
+      throw new Error('cron HTTP read requires a verified root Session owner')
+    }
+    return header
+  }
+
+  async function readOwnerSnapshot(sessionId, signal) {
+    signal.throwIfAborted()
+    const persistence = ctx.sessionPersistence
+    let snapshot
+    if (typeof persistence.stat === 'function') {
+      snapshot = await persistence.stat(sessionId, { signal })
+      if (!snapshot || !Object.hasOwn(snapshot, 'header') || !Object.hasOwn(snapshot, 'revision')) {
+        throw new Error('cron HTTP read requires a verified root Session owner')
+      }
+    } else {
+      const listed = await persistence.list({ signal })
+      const candidates = Array.isArray(listed) ? listed.filter(candidate =>
+        candidate?.id === sessionId || candidate?.header?.id === sessionId) : []
+      if (candidates.length !== 1) throw new Error('cron HTTP read requires a verified root Session owner')
+      snapshot = candidates[0]
+    }
+    signal.throwIfAborted()
+    return rootSnapshotHeader(snapshot, sessionId)
+  }
+
   /** Last provider/model pair recorded by the target Session. */
   function lastRequestConfig(events) {
     for (let index = events.length - 1; index >= 0; index -= 1) {
@@ -726,26 +763,22 @@ export function apply(ctx, config) {
   /** Read one cold Session across legacy inspect and Core 0.1.3/0.1.5 handles. */
   async function inspectPersistedSession(sessionId) {
     const persistence = ctx.sessionPersistence
-    const listed = await persistence.list()
-    const snapshot = listed.find((candidate) => String(candidate?.header?.id ?? candidate?.id) === sessionId)
-    const header = snapshot?.header ?? snapshot
-    if (!header?.cwd) return null
-    if (header.origin === 'subagent' || Number(header.delegationDepth ?? 0) > 0) {
-      logger.warn(`cron: bound session "${sessionId}" is subagent-owned; refusing cold resume`)
-      return null
-    }
+    const signal = schedulerLifetime.signal
+    const header = await readOwnerSnapshot(sessionId, signal)
+    if (!header.cwd) throw new Error('missing session working directory')
     if (typeof persistence.open === 'function') {
-      const handle = await persistence.open(header.id, 'read')
+      const handle = await persistence.open(header.id, 'read', { signal })
       try {
+        signal.throwIfAborted()
         if (typeof handle?.read !== 'function' || typeof handle?.close !== 'function') {
           throw new TypeError('invalid session persistence read handle')
         }
-        const meta = handle.header
-        if (String(meta?.id) !== sessionId || !meta?.cwd
-          || meta.origin === 'subagent' || Number(meta.delegationDepth ?? 0) > 0) {
+        const meta = rootSnapshotHeader(handle.header, sessionId)
+        if (!meta.cwd) {
           throw new Error('invalid or non-root session persistence handle header')
         }
-        const result = await handle.read()
+        const result = await handle.read(undefined, undefined, { signal })
+        signal.throwIfAborted()
         // 0.1.3 returns an array; 0.1.5 returns an ownership-tagged slice.
         // Cron only observes events to select model/preset; it never mutates or
         // transfers their ownership to Session reconstruction (Core does that).
@@ -759,47 +792,65 @@ export function apply(ctx, config) {
         if (typeof handle?.close === 'function') await handle.close()
       }
     }
-    if (typeof persistence.inspect === 'function') return persistence.inspect(header.id)
+    if (typeof persistence.inspect === 'function') {
+      const inspected = await persistence.inspect(header.id)
+      signal.throwIfAborted()
+      const meta = rootSnapshotHeader(inspected?.meta, sessionId)
+      if (!meta.cwd || !Array.isArray(inspected?.events)) throw new Error('invalid session inspection')
+      return inspected
+    }
     throw new Error('session persistence exposes neither open nor inspect')
   }
 
   /** One in-flight resume per Session prevents duplicate cold agents. */
   const resumes = new Map()
+  const resumeFailures = new Map()
+
+  function deferResume(sessionId, stage) {
+    if (schedulerLifetime.signal.aborted) return
+    const previous = resumeFailures.get(sessionId)
+    const delay = Math.min(COLD_RETRY_MAX_MS, previous ? previous.delay * 2 : COLD_RETRY_MIN_MS)
+    resumeFailures.set(sessionId, { delay, retryAt: Date.now() + delay })
+    // Preset/schema failures may contain prompts or credentials. Log only the
+    // stage and a bounded identity, once per attempt, never the thrown contents.
+    logger.warn(`cron: cannot ${stage} bound session ${JSON.stringify(sessionId.slice(0, 128))}; retry in ${delay / 1000}s`)
+  }
 
   async function resumeBoundSession(sessionId) {
-    if (!config.coldWake) return null
+    if (!config.coldWake || schedulerLifetime.signal.aborted) return null
     const pending = resumes.get(sessionId)
     if (pending) return pending
+    if (Date.now() < (resumeFailures.get(sessionId)?.retryAt ?? 0)) return null
+    if (resumes.size >= MAX_COLD_RESUMES) return null
     const operation = (async () => {
-      let inspected
+      let stage = 'inspect'
       try {
-        inspected = await inspectPersistedSession(sessionId)
-        if (inspected === null) return null
-      } catch (error) {
-        logger.warn(`cron: cannot inspect bound session "${sessionId}": ${error?.message ?? error}`)
-        return null
-      }
-      const events = [...inspected.events]
-      const presetId = currentSessionPreset(inspected.meta, events)
-      const recorded = lastRequestConfig(events)
-      const fallback = ctx.agentDefaultModel.currentSelection()
-      const selection = recorded ?? { provider: fallback.provider, model: fallback.model }
-      try {
+        const inspected = await inspectPersistedSession(sessionId)
+        schedulerLifetime.signal.throwIfAborted()
+        const events = [...inspected.events]
+        const presetId = currentSessionPreset(inspected.meta, events)
+        const recorded = lastRequestConfig(events)
+        stage = 'resume'
+        const fallback = recorded ? null : ctx.agentDefaultModel.currentSelection()
+        const selection = recorded ?? { provider: fallback.provider, model: fallback.model }
         const handle = await ctx.agents.resume({
           resumeSessionId: inspected.meta.id,
           agentOptions: selection,
           setup: async (agentCtx) => {
+            schedulerLifetime.signal.throwIfAborted()
             await ctx.agentPresets.mount(agentCtx, presetId)
+            schedulerLifetime.signal.throwIfAborted()
           },
         })
-        if (String(handle.agent.session?.id) !== sessionId) {
-          logger.warn(`cron: resumed session identity mismatch for "${sessionId}"`)
-          await handle.dispose?.()
+        if (schedulerLifetime.signal.aborted || String(handle?.agent?.session?.id) !== sessionId) {
+          await handle?.dispose?.()
+          if (!schedulerLifetime.signal.aborted) deferResume(sessionId, 'resume (identity mismatch)')
           return null
         }
+        resumeFailures.delete(sessionId)
         return handle.agent
-      } catch (error) {
-        logger.warn(`cron: cannot resume bound session "${sessionId}": ${error?.message ?? error}`)
+      } catch {
+        deferResume(sessionId, stage)
         return null
       }
     })().finally(() => resumes.delete(sessionId))
@@ -814,23 +865,26 @@ export function apply(ctx, config) {
       return null
     }
     const live = ctx.agents.roots().find((agent) => String(agent.session?.id) === task.sessionId)
-    if (live) return live
+    if (live) {
+      resumeFailures.delete(task.sessionId)
+      return live
+    }
     return resumeBoundSession(task.sessionId)
   }
 
   /** Per-task ownership covers cold resume through durable stamping. */
   const firing = new Set()
+  const taskRevisions = new WeakMap()
 
   /** Deliver one task asynchronously; failure leaves its slot overdue. */
   async function fire(task, slot) {
-    if (firing.has(task.id)) return null
+    if (schedulerLifetime.signal.aborted || firing.has(task.id)) return null
     firing.add(task.id)
+    const revision = taskRevisions.get(task)
     try {
       const agent = await resolveBoundAgent(task)
-      if (!agent) {
-        logger.warn(`cron: task "${task.id}" is due but bound session "${task.sessionId ?? ''}" is unavailable; will retry next tick`)
-        return null
-      }
+      if (!agent || schedulerLifetime.signal.aborted) return null
+      if (tasks.get(task.id) !== task || taskRevisions.get(task) !== revision) return null
       const message = createUserMessage({
         content: [{ type: 'text', text: renderTaskMessage(task, slot) }],
         source: { kind: 'plugin', plugin: 'cron' },
@@ -864,27 +918,20 @@ export function apply(ctx, config) {
     }
   }
 
-  /** Serialize scheduler passes; timer callbacks merely request another pass. */
-  let tickPromise = null
-  let tickRequested = false
+  /** Per-task single flight lets other owners progress even during a slow resume. */
   function tick() {
-    tickRequested = true
-    if (tickPromise) return tickPromise
-    tickPromise = (async () => {
-      while (tickRequested) {
-        tickRequested = false
-        const now = Date.now()
-        for (const task of tasks.values()) {
-          try {
-            const slot = dueSlot(task, now, startedAt)
-            if (slot != null) await fire(task, slot)
-          } catch (error) {
-            logger.warn(`cron: tick failed for task "${task?.id}": ${error?.message ?? error}`)
-          }
-        }
+    if (schedulerLifetime.signal.aborted) return
+    const now = Date.now()
+    for (const task of tasks.values()) {
+      try {
+        const slot = dueSlot(task, now, startedAt)
+        if (slot != null) void fire(task, slot).catch(error => {
+          logger.warn(`cron: tick failed for task "${task.id}": ${error?.message ?? error}`)
+        })
+      } catch (error) {
+        logger.warn(`cron: tick failed for task "${task?.id}": ${error?.message ?? error}`)
       }
-    })().finally(() => { tickPromise = null })
-    return tickPromise
+    }
   }
 
   // One interval owns the whole schedule; cleared automatically on unload.
@@ -895,6 +942,8 @@ export function apply(ctx, config) {
     const first = setTimeout(safeTick, 3000)
     const timer = setInterval(safeTick, Math.max(1, config.tickSeconds) * 1000)
     return () => {
+      schedulerLifetime.abort()
+      resumeFailures.clear()
       clearTimeout(first)
       clearInterval(timer)
     }
@@ -993,6 +1042,7 @@ export function apply(ctx, config) {
     }
     const invalid = validateTask(merged)
     if (invalid) throw new Error(invalid)
+    taskRevisions.set(task, (taskRevisions.get(task) ?? 0) + 1)
     task.prompt = merged.prompt
     for (const k of RULE_KEYS) task[k] = merged[k]
     if (patch.timeZone !== undefined) {
@@ -1015,6 +1065,7 @@ export function apply(ctx, config) {
     if (!task) throw new Error(`no task with id "${id}"`)
     assertTaskOwner(task, sessionId)
     if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean')
+    taskRevisions.set(task, (taskRevisions.get(task) ?? 0) + 1)
     // null clears the override when it matches the declared flag again.
     task.enabledOverride = enabled === (task.enabled !== false) ? null : enabled
     save()
@@ -1144,44 +1195,68 @@ export function apply(ctx, config) {
       if (!owner) throw new Error('cron HTTP request requires a live root Session owner')
       return sessionId
     }
-    // Read-only HTTP views may observe a cold root without reconstructing it.
-    // list() is the public metadata-only seam: legacy Core returns headers,
-    // Core 0.1.3/0.1.5 returns { header, revision }. Never inspect/read events,
-    // open a handle, or use a task/payload's claimed lineage as authority.
-    const httpReadOwner = async (payload) => {
+    // Share pending metadata work, not settled authority. Each later refresh
+    // reads a fresh header; opaque revisions are never used as an owner cache.
+    const ownerReads = new Map()
+    let httpDisposed = false
+    const httpReadOwner = async (payload, signal) => {
+      signal.throwIfAborted()
+      if (httpDisposed) throw new Error('cron HTTP service disposed')
       const sessionId = requireSessionId(payload?.sessionId, 'cron HTTP request')
       if (ctx.agents.roots().some((agent) => String(agent.session?.id) === sessionId)) return sessionId
-      const listed = await ctx.sessionPersistence.list()
-      const candidates = Array.isArray(listed) ? listed.filter((candidate) =>
-        candidate?.id === sessionId || candidate?.header?.id === sessionId) : []
-      if (candidates.length !== 1) throw new Error('cron HTTP read requires a verified root Session owner')
-      const snapshot = candidates[0]
-      const header = Object.hasOwn(snapshot, 'header') || Object.hasOwn(snapshot, 'revision') ? snapshot.header : snapshot
-      // Absence of depth means zero in the public SessionHeader contract.
-      // parentSession is fork/seed lineage, not evidence of delegation.
-      // Unknown/null/coerced lineage and conflicting identities fail closed.
-      if (header?.id !== sessionId
-        || (snapshot !== header && Object.hasOwn(snapshot, 'id'))
-        || header.origin !== undefined
-        || (header.delegationDepth !== undefined && header.delegationDepth !== 0)) {
-        throw new Error('cron HTTP read requires a verified root Session owner')
+      let entry = ownerReads.get(sessionId)
+      if (!entry) {
+        const controller = new AbortController()
+        entry = { controller, users: 0, settled: false, promise: null }
+        entry.promise = readOwnerSnapshot(sessionId, controller.signal).finally(() => {
+          entry.settled = true
+          ownerReads.delete(sessionId)
+        })
+        ownerReads.set(sessionId, entry)
       }
+      // A legacy backend may ignore abort. Do not accumulate replacement scans
+      // until that operation settles; callers get an explicit retryable error.
+      if (entry.controller.signal.aborted) throw new Error('cron metadata cancellation pending; retry later')
+      entry.users++
+      let detach
+      await new Promise((resolve, reject) => {
+        const abort = () => reject(signal.reason)
+        const cancel = () => reject(entry.controller.signal.reason)
+        signal.addEventListener('abort', abort, { once: true })
+        entry.controller.signal.addEventListener('abort', cancel, { once: true })
+        detach = () => {
+          signal.removeEventListener('abort', abort)
+          entry.controller.signal.removeEventListener('abort', cancel)
+        }
+        entry.promise.then(resolve, reject)
+      }).finally(() => {
+        detach()
+        entry.users--
+        if (!entry.users && !entry.settled) entry.controller.abort()
+      })
+      signal.throwIfAborted()
+      if (httpDisposed) throw new Error('cron HTTP service disposed')
       return sessionId
     }
     const api = {
-      list: async (payload) => ({ tasks: listTasks(await httpReadOwner(payload)) }),
+      list: async (payload, signal) => ({ tasks: listTasks(await httpReadOwner(payload, signal)) }),
       add: (payload) => ({ task: addDynamicTask(payload, httpOwner(payload)) }),
       update: (payload) => ({ task: updateDynamicTask(payload?.id, payload ?? {}, httpOwner(payload)) }),
       remove: (payload) => removeDynamicTask(payload?.id, httpOwner(payload)),
       toggle: (payload) => ({ task: setTaskEnabled(payload?.id, payload?.enabled, httpOwner(payload)) }),
       run: (payload) => runTaskNow(payload?.id, httpOwner(payload)),
-      history: async (payload) => ({ records: listHistory(payload?.limit, await httpReadOwner(payload)) }),
+      history: async (payload, signal) => ({ records: listHistory(payload?.limit, await httpReadOwner(payload, signal)) }),
     }
 
-    webCtx.effect(() => webCtx.webServer.register({
+    webCtx.effect(() => {
+      const unregister = webCtx.webServer.register({
       kind: 'prefix',
       path: '/cron/api',
       handler: async (req, res) => {
+        const controller = new AbortController()
+        const abort = () => controller.abort()
+        req.once('aborted', abort)
+        res.once?.('close', abort)
         try {
           if (!fence(req)) {
             writeJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
@@ -1198,22 +1273,35 @@ export function apply(ctx, config) {
             return
           }
           const payload = await readJsonBody(req)
+          controller.signal.throwIfAborted()
+          if (httpDisposed) throw new Error('cron HTTP service disposed')
           const handler = api[method]
           if (handler === undefined) {
             writeJson(res, 404, { ok: false, error: { code: 'not-found', message: `unknown cron API method "${method}"` } })
             return
           }
-          writeJson(res, 200, { ok: true, result: await handler(payload) })
+          const result = await handler(payload, controller.signal)
+          if (!controller.signal.aborted) writeJson(res, 200, { ok: true, result })
         } catch (error) {
           // Last line of defense: a rejected handler promise must never
           // escape into the webserver as an unhandledRejection.
           try {
+            if (controller.signal.aborted) return
             if (!res.headersSent) writeJson(res, 400, { ok: false, error: { code: 'bad-request', message: error?.message ?? String(error) } })
             else res.end()
           } catch { /* socket already gone */ }
+        } finally {
+          req.removeListener('aborted', abort)
+          res.removeListener?.('close', abort)
         }
       },
-    }), 'dsh-cron: /cron/api routes')
+      })
+      return () => {
+        httpDisposed = true
+        for (const entry of ownerReads.values()) entry.controller.abort()
+        unregister()
+      }
+    }, 'dsh-cron: /cron/api routes')
 
     logger.info('cron: HTTP API mounted at /cron/api')
   })

@@ -65,15 +65,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.5.1
+dsh plugin --profile web add github:cloga/dsh-cron#v0.5.2
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.5.1 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.5.1) 下载 `dsh-cron-0.5.1.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.5.2 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.5.2) 下载 `dsh-cron-0.5.2.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.5.1.tgz
+dsh plugin --profile web add ./dsh-cron-0.5.2.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -85,7 +85,7 @@ dsh plugin --profile web add ./dsh-cron-0.5.1.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.1'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.2'
 ```
 
 </details>
@@ -98,7 +98,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.1'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.5.1`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.5.2`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 
@@ -134,6 +134,12 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 模型工具：`cron_list`、`cron_add`、`cron_update`、`cron_remove`、`cron_history`。它们只接受当前 live root Session 的所有权；子代理或无 Agent 的调用会被拒绝。
 
 **v0.5.1 的冷会话只读查看：** 面板的 HTTP `list/history` 可以读取已保存、且经公开 Header 验证为 root 的原会话任务。不会为查看列表恢复 Agent、读取会话事件、消费过期时刻或修改任务状态；未知、子代理或歧义身份仍拒绝。HTTP 修改、启停、立即执行仍要求该 root Session 已加载。读失败会显示错误与重试，不会冒充“没有任务”，也无需重新创建已有任务。
+
+**v0.5.2 的恢复与轮询加固：** 同一冷会话的恢复失败共用 30、60、120、240、300 秒退避，之后最多每 300 秒重试一次（由现有调度 tick 检查，不新增重试定时器）。修好 preset 后会自动重试；若原 root 已重新加载，下次 tick 可直接使用它。等待恢复不会阻塞其他会话，成功投递过的时刻不重放。日志仅记录阶段、会话标识和重试间隔，不回显可能含提示词或凭据的 schema 错误。此退避不修复 preset，也不代表任务业务执行成功。
+
+冷会话 HTTP 读取优先使用公开的 `sessionPersistence.stat(id, { signal })`；旧 Core 无此能力时才回退 metadata-only `list()`。同一 owner 的并发 `list/history` 共用尚未完成的查询，不缓存已完成的所有权判定；后续读取重新验证 root 身份。最后一个请求取消时转发取消信号；若旧后端忽略取消，未完成扫描不会被反复创建，后续读取明确报错并等待该扫描结束。
+
+面板及通知观察器各自只保留一个未完成的只读刷新，慢响应不会被下一轮轮询作废；30 秒截止后取消请求，提供失败反馈和后续重试。隐藏面板、切换 owner 或卸载会取消相应读取，旧响应不回写；任务修改请求不会被自动重放。仓库或 Release 中的改动不等于已安装或当前页面已生效，须分别核对安装及激活状态。
 
 ### 通知与历史
 

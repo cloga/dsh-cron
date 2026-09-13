@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2
+
+- Bound failed cold Session resumes with per-owner exponential backoff from 30 seconds to 5 minutes, sharing concurrent attempts and limiting cold-start pressure to four owners. Other live owners keep progressing; repair automatically restores overdue delivery without replaying successful slots.
+- Cancel stale deliveries after task edits, disable/remove actions or plugin disposal. Keep exact root ownership and persistence handle cleanup; log safe stage/owner/retry diagnostics without echoing preset or credential-bearing errors.
+- Prefer public targeted `sessionPersistence.stat(id, { signal })` for cold-owner metadata. Retain the legacy metadata-only list fallback, coalesce pending same-owner HTTP list/history reads, revalidate lineage on every later read, and cancel backend work when its final subscriber disconnects.
+- Make panel and notification reads single-flight with a 30-second deadline, including response bodies. Slow successful reads now publish; hung reads release Retry, hidden/replaced lifetimes cancel immediately, and task mutations are never automatically replayed.
+- Add deterministic Host and source-backed React regressions, preserving existing native Sidebar presentation and supported Core versions. The motivating incident was an incompatible preset field repaired separately; this release adds prevention and does not claim every browser fetch failure has the same cause.
+- This pre-1.0 patch is backward-compatible resilience hardening, not a new scheduling policy, task migration, preset/Core patch or broader compatibility promise. Release verification and live installation/activation remain separate.
+
 ## 0.5.1
 
 - Fix HTTP task/history reads for persisted root Sessions that are not currently loaded (#36). Verify only public persisted identity/lineage metadata, keep results scoped to that owner, and never wake an Agent, read Session events or write task/history data just to display the panel.

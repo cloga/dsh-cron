@@ -59,8 +59,11 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
       if (Object.hasOwn(options, 'badHandle')) return options.badHandle
       return {
         header: inspected.meta,
-        read: async () => {
+        read: async (offset, length, readOptions) => {
           persistenceReads.push(id)
+          assert.equal(offset, undefined, 'read the entire event log without an offset')
+          assert.equal(length, undefined, 'read the entire event log without a slice limit')
+          assert.ok(readOptions?.signal instanceof AbortSignal, 'cancellation is the third public read argument')
           if (options.persistenceReadError) throw options.persistenceReadError
           if (Object.hasOwn(options, 'readResult')) return options.readResult
           return options.eventState
@@ -134,7 +137,7 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
   }
 }
 
-async function callHttp(route, method, payload) {
+async function callHttp(route, method, payload, observe) {
   const req = new EventEmitter()
   req.method = 'POST'
   req.url = `/cron/api/${method}`
@@ -142,16 +145,17 @@ async function callHttp(route, method, payload) {
   req.destroy = () => {}
   let status
   let body = ''
-  const res = {
+  const res = Object.assign(new EventEmitter(), {
     headersSent: false,
     writeHead(value) { status = value; this.headersSent = true },
     end(value = '') { body += value },
-  }
+  })
   const pending = route.handler(req, res)
   req.emit('data', Buffer.from(JSON.stringify(payload)))
   req.emit('end')
+  observe?.(req, res)
   await pending
-  return { status, body: JSON.parse(body) }
+  return { status, body: body ? JSON.parse(body) : null }
 }
 
 const dir = mkdtempSync(join(tmpdir(), 'dsh-cron-test-'))
@@ -168,6 +172,247 @@ console.log('✓ unbound static config task rejected at startup')
 const past = new Date(Date.now() - 60_000).toISOString()
 const pastHM = new Date(Date.now() - 60_000)
 const dailyPast = `${String(pastHM.getHours()).padStart(2, '0')}:${String(pastHM.getMinutes()).padStart(2, '0')}`
+
+// Deterministic clock drives actual scheduler callbacks, never real tasks.
+{
+  const original = { setTimeout, setInterval, clearTimeout, clearInterval, now: Date.now }
+  let now = Date.now()
+  const intervals = new Set()
+  globalThis.setTimeout = () => 0
+  globalThis.clearTimeout = () => {}
+  globalThis.setInterval = fn => { intervals.add(fn); return fn }
+  globalThis.clearInterval = fn => intervals.delete(fn)
+  Date.now = () => now
+  const flush = async () => { for (let i = 0; i < 40; i++) await Promise.resolve() }
+  const tick = async (elapsed = 0) => {
+    now += elapsed
+    for (const fn of intervals) fn()
+    await flush()
+  }
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-backoff-'))
+  const options = { roots: [], http: true, resumeError: new Error('preset invalid SECRET'), persistenceApi: 'handle' }
+  let run
+  try {
+    run = makeCtx(join(directory, 'tasks.json'), join(directory, 'history.jsonl'), [
+      { id: 'one', prompt: 'one', at: past, sessionId: 'sess-1' },
+      { id: 'two', prompt: 'two', at: past, sessionId: 'sess-1' },
+      { id: 'healthy', prompt: 'healthy', every: 10, sessionId: 'healthy' },
+    ], options)
+    const healthy = []
+    run.roots.push({ session: { id: 'healthy' }, followup: message => healthy.push(message) })
+    await tick()
+    assert.equal(run.resumes.length, 1, 'same-owner tasks share one failed cold attempt')
+    await tick(15_000)
+    assert.equal(run.resumes.length, 1, 'failed owner is not retried every tick')
+    assert.equal(healthy.length, 1, 'other owners keep their schedule')
+    await tick(15_000)
+    assert.equal(run.resumes.length, 2, 'first retry after 30 seconds')
+    await tick(30_000)
+    assert.equal(run.resumes.length, 2, 'second retry waits 60 seconds')
+    await tick(30_000)
+    assert.equal(run.resumes.length, 3)
+    for (const delay of [120_000, 240_000, 300_000, 300_000]) {
+      const count = run.resumes.length
+      await tick(delay - 1)
+      assert.equal(run.resumes.length, count, 'no early retry at capped exponential boundary')
+      await tick(1)
+      assert.equal(run.resumes.length, count + 1)
+    }
+    assert.ok(run.warnings.every(message => !message.includes('SECRET')), 'resume diagnostics never echo preset/error contents')
+    assert.equal(run.fired.length, 0, 'failed slots remain unconsumed')
+    delete options.resumeError
+    await tick(300_000)
+    assert.equal(run.fired.length, 2, 'repaired owner automatically delivers both overdue tasks')
+    await tick(300_000)
+    assert.equal(run.fired.length, 2, 'successful one-shot slots never replay')
+
+    // Live delivery ignores invalid persisted presets; a warm repair also
+    // clears the cold failure budget immediately, before its next deadline.
+    const warmAgent = { session: { id: 'sess-1' }, followup: message => run.fired.push(message) }
+    run.roots.push(warmAgent)
+    await run.tools.get('cron_add').execute({ id: 'warm', prompt: 'warm', every: 10 }, { agent: warmAgent })
+    options.resumeError = new Error('still invalid SECRET')
+    const attempts = run.resumes.length
+    await tick(10_000)
+    assert.equal(run.resumes.length, attempts, 'warm task needs no persistence or preset resume')
+    assert.equal(run.fired.length, 3)
+    run.roots.splice(run.roots.indexOf(warmAgent), 1)
+    await tick(10_000)
+    assert.equal(run.resumes.length, attempts + 1)
+    run.roots.push(warmAgent)
+    await tick(1_000)
+    assert.equal(run.fired.length, 4, 'live repaired root bypasses backoff')
+    await run.tools.get('cron_remove').execute({ id: 'warm' }, { agent: warmAgent })
+    run.roots.splice(run.roots.indexOf(warmAgent), 1)
+
+    // A hung owner must not hold the entire scheduler pass or fire after unload.
+    const coldAgent = { session: { id: 'sess-1' }, followup: message => run.fired.push(message) }
+    run.roots.push(coldAgent)
+    for (const id of ['hung', 'disable-race', 'remove-race', 'edit-race']) {
+      await run.tools.get('cron_add').execute({ id, prompt: id, every: 10 }, { agent: coldAgent })
+    }
+    run.roots.splice(run.roots.indexOf(coldAgent), 1)
+    let releaseResume
+    let disposed = 0
+    run.ctx.agents.resume = () => new Promise(resolve => {
+      releaseResume = () => resolve({ agent: coldAgent, dispose: async () => { disposed++ } })
+    })
+    await tick(10_000)
+    const before = healthy.length
+    await tick(10_000)
+    assert.equal(healthy.length, before + 1, 'pending cold resume cannot starve live owners on later ticks')
+    run.roots.push(coldAgent)
+    assert.equal((await callHttp(run.routes[0], 'toggle', {
+      id: 'disable-race', sessionId: 'sess-1', enabled: false,
+    })).status, 200)
+    await run.tools.get('cron_remove').execute({ id: 'remove-race' }, { agent: coldAgent })
+    await run.tools.get('cron_update').execute({ id: 'edit-race', every: 600 }, { agent: coldAgent })
+    run.roots.splice(run.roots.indexOf(coldAgent), 1)
+    releaseResume()
+    await flush()
+    assert.equal(run.fired.length, 5, 'removed, disabled and rescheduled tasks do not fire from an old pending slot')
+    assert.ok(run.fired.at(-1).content[0].text.includes('"hung"'))
+    await tick(10_000)
+    run.disposers.forEach(dispose => dispose?.())
+    releaseResume()
+    await flush()
+    assert.equal(run.fired.length, 5, 'late resume cannot deliver after disposal')
+    assert.equal(disposed, 1, 'late-created resume handle is disposed')
+
+    const pressure = makeCtx(join(directory, 'pressure.json'), join(directory, 'pressure-history.jsonl'),
+      Array.from({ length: 6 }, (_, id) => ({ id: `p${id}`, sessionId: `owner-${id}`, prompt: 'bounded', at: past })),
+      { roots: [], persistenceApi: 'handle' })
+    try {
+      const releases = []
+      pressure.ctx.sessionPersistence.stat = async id => ({ header: { id, cwd: directory }, revision: 'x' })
+      pressure.ctx.sessionPersistence.open = async id => ({
+        header: { id, cwd: directory }, read: async () => [], close: async () => {},
+      })
+      pressure.ctx.agents.resume = request => new Promise(resolve => releases.push(() => resolve({
+        agent: { session: { id: request.resumeSessionId }, followup: message => pressure.fired.push(message) },
+      })))
+      await tick()
+      assert.equal(releases.length, 4, 'cold-owner startup pressure is bounded to four')
+      await tick(15_000)
+      assert.equal(releases.length, 4, 'hung resumes do not create replacement operations')
+      releases.splice(0).forEach(release => release())
+      await flush()
+      assert.equal(pressure.fired.length, 4)
+      await tick(15_000)
+      assert.equal(releases.length, 2, 'remaining cold owners progress once capacity is available')
+      releases.forEach(release => release())
+      await flush()
+      assert.equal(pressure.fired.length, 6)
+      await tick(15_000)
+      assert.equal(pressure.fired.length, 6, 'all successful slots stay consumed')
+    } finally {
+      pressure.disposers.forEach(dispose => dispose?.())
+    }
+  } finally {
+    run?.disposers.forEach(dispose => dispose?.())
+    Object.assign(globalThis, {
+      setTimeout: original.setTimeout, setInterval: original.setInterval,
+      clearTimeout: original.clearTimeout, clearInterval: original.clearInterval,
+    })
+    Date.now = original.now
+    rmSync(directory, { recursive: true, force: true })
+  }
+  console.log('✓ cold-owner bounded backoff, repair, independent scheduling and disposal')
+}
+
+// Concurrent read endpoints share metadata work only while it is pending.
+for (const modern of [false, true]) {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-metadata-'))
+  const run = makeCtx(join(directory, 'tasks.json'), join(directory, 'history.jsonl'), [], {
+    roots: [], http: true, skipSchedulerEffects: true,
+  })
+  let calls = 0
+  let release
+  let backendSignal
+  let snapshot = { header: { id: 'sess-1' }, revision: 'one' }
+  const metadata = async (...args) => {
+    calls++
+    backendSignal = modern ? args[1]?.signal : args[0]?.signal
+    if (modern) {
+      assert.equal(args[0], 'sess-1')
+      assert.ok(args[1]?.signal instanceof AbortSignal)
+    }
+    await new Promise(resolve => { release = resolve })
+    return modern ? snapshot : [snapshot]
+  }
+  if (modern) {
+    run.ctx.sessionPersistence.stat = metadata
+    run.ctx.sessionPersistence.list = () => { throw new Error('must not enumerate modern persistence') }
+  } else run.ctx.sessionPersistence.list = metadata
+  try {
+    const pair = [
+      callHttp(run.routes[0], 'list', { sessionId: 'sess-1' }),
+      callHttp(run.routes[0], 'history', { sessionId: 'sess-1' }),
+    ]
+    for (let i = 0; i < 15; i++) await Promise.resolve()
+    assert.equal(calls, 1, 'concurrent list/history coalesce by owner')
+    release()
+    assert.ok((await Promise.all(pair)).every(result => result.status === 200))
+    snapshot = { header: { id: 'sess-1', origin: 'subagent' }, revision: 'two' }
+    const next = callHttp(run.routes[0], 'list', { sessionId: 'sess-1' })
+    for (let i = 0; i < 15; i++) await Promise.resolve()
+    assert.equal(calls, 2, 'no settled ownership snapshot is cached')
+    release()
+    assert.equal((await next).status, 400, 'changed lineage is revalidated')
+    snapshot = { header: { id: 'sess-1' }, revision: 'three' }
+    let disconnectList
+    let disconnectHistory
+    const cancelledList = callHttp(run.routes[0], 'list', { sessionId: 'sess-1' }, (_req, res) => {
+      disconnectList = () => res.emit('close')
+    })
+    const cancelledHistory = callHttp(run.routes[0], 'history', { sessionId: 'sess-1' }, req => {
+      disconnectHistory = () => req.emit('aborted')
+    })
+    for (let i = 0; i < 15; i++) await Promise.resolve()
+    assert.equal(calls, 3)
+    disconnectList()
+    await cancelledList
+    assert.equal(backendSignal.aborted, false, 'one caller cannot cancel another owner-read subscriber')
+    disconnectHistory()
+    await cancelledHistory
+    assert.equal(backendSignal.aborted, true, 'last disconnected caller aborts backend metadata')
+    assert.equal((await callHttp(run.routes[0], 'list', { sessionId: 'sess-1' })).status, 400,
+      'backend ignoring abort does not start replacement scans')
+    assert.equal(calls, 3)
+    release()
+    for (let i = 0; i < 15; i++) await Promise.resolve()
+    const recovered = callHttp(run.routes[0], 'list', { sessionId: 'sess-1' })
+    for (let i = 0; i < 15; i++) await Promise.resolve()
+    release()
+    assert.equal((await recovered).status, 200, 'fresh reads recover after cancelled backend settles')
+    if (modern) {
+      for (const invalid of [undefined, { id: 'sess-1' }, { header: { id: 'sess-1' } },
+        { header: { id: 'wrong' }, revision: 'x' },
+        { id: 'sess-1', header: { id: 'sess-1' }, revision: 'x' },
+        { header: { id: 'sess-1', delegationDepth: '0' }, revision: 'x' }]) {
+        run.ctx.sessionPersistence.stat = async () => invalid
+        assert.equal((await callHttp(run.routes[0], 'list', { sessionId: 'sess-1' })).status, 400,
+          'stat missing or ambiguous snapshot fails closed without legacy fallback')
+      }
+      run.ctx.sessionPersistence.stat = async () => { throw new Error('stat failed') }
+      assert.equal((await callHttp(run.routes[0], 'history', { sessionId: 'sess-1' })).status, 400)
+    }
+    assert.equal(run.resumes.length, 0)
+    assert.equal(run.persistenceReads.length, 0)
+    assert.equal(run.persistenceInspects.length, 0)
+    if (modern) run.ctx.sessionPersistence.stat = metadata
+    const disposing = callHttp(run.routes[0], 'list', { sessionId: 'sess-1' })
+    for (let i = 0; i < 15; i++) await Promise.resolve()
+    run.disposers.forEach(dispose => dispose?.())
+    assert.equal((await disposing).status, 400, 'HTTP disposal unwinds pending subscribers even if backend ignores abort')
+    assert.equal(backendSignal.aborted, true)
+    release()
+    console.log(`✓ ${modern ? 'targeted stat' : 'legacy list'} metadata coalescing, freshness and cancellation`)
+  } finally {
+    run.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
 
 const configTasks = [
   { id: 'once', prompt: 'one shot task', at: past, sessionId: 'sess-1' },
@@ -568,7 +813,7 @@ try {
     assert.equal(run.resumes.length, 0, 'invalid persistence never resumes any owner')
     assert.equal(run.fired.length, 0)
     assert.equal(existsSync(join(directory, 'history.jsonl')), false)
-    assert.ok(run.persistenceOpens.length >= 2, 'invalid reads remain overdue and retry')
+    assert.equal(run.persistenceOpens.length, 1, 'invalid reads remain overdue with bounded retry backoff')
     if (!Object.hasOwn(options, 'badHandle')) {
       assert.equal(run.persistenceCloses.length, run.persistenceOpens.length, 'all acquired handles close')
     } else if (options.badHandle === malformedClosableHandle) {
@@ -640,7 +885,7 @@ await new Promise((r) => setTimeout(r, 2200))
 assert.ok(closeError.persistenceCloses.length >= 1, 'close is attempted on every cold read')
 assert.equal(closeError.resumes.length, 0, 'close failure prevents resume')
 assert.equal(closeError.fired.length, 0, 'close failure leaves the task overdue')
-assert.ok(closeError.warnings.some((warning) => warning.includes('cannot inspect bound session "sess-close-error": close failed')))
+assert.ok(closeError.warnings.some((warning) => warning.includes('cannot inspect bound session "sess-close-error"')))
 closeError.disposers.forEach((d) => d?.())
 rmSync(closeErrorDir, { recursive: true, force: true })
 console.log('✓ handle close failure aborts cold resume and is logged')
@@ -676,7 +921,7 @@ const failed = makeCtx(join(failedDir, 'tasks.json'), join(failedDir, 'history.j
   inspected: { meta: { id: 'sess-missing', cwd: 'C:\\workspace' }, events: [] },
 })
 await new Promise((r) => setTimeout(r, 4200))
-assert.ok(failed.resumes.length >= 2, 'a real resume rejection stays overdue and retries')
+assert.equal(failed.resumes.length, 1, 'a real resume rejection stays overdue with bounded retry backoff')
 assert.equal(failed.persistenceCloses.length, failed.resumes.length, 'handle closes before each failed resume')
 assert.equal(otherFired.length, 0, 'resume failure still never falls back')
 assert.equal(failed.fired.length, 0)

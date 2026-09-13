@@ -8,6 +8,7 @@ import { zh, en } from './locale.js'
 import { css, styles } from './styles.js'
 import { CRON_TAB_ID, createSidebarTab, supportsSidebar, type SidebarService, type SidebarProps } from './sidebar.js'
 import { registerNativeSidebar, openNative, ownerTitle, createPanelConsumers, createRequestLease, type NativeController, type NativeBodyProps, type UseSessions } from './native-sidebar.js'
+import { createReadPoll, ReadTimeoutError } from './read-poll.js'
 
 /** Services required from the client runtime. */
 export const inject = ['slots', 'locale']
@@ -334,16 +335,17 @@ function ToastCard({ t, item }: { t: T; item: ToastItem }) {
  */
 function useCronWatcher(sessionId: string | null): void {
   const snapshotRef = useRef<Map<string, string> | null>(null)
+  const ownerRef = useRef(sessionId)
+  ownerRef.current = sessionId
 
   useEffect(() => {
-    let stopped = false
     snapshotRef.current = null // prime independently after every owner change
+    if (!sessionId) return
     console.info('[dsh-cron] watcher started (poll every %ds)', POLL_MS / 1000)
-    const poll = async () => {
-      if (!sessionId || typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-      try {
-        const { records } = await api<{ records: RunRecord[] }>('history', { limit: 20, sessionId })
-        if (stopped) return
+    const reader = createReadPoll({
+      alive: () => ownerRef.current === sessionId,
+      read: signal => api<{ records: RunRecord[] }>('history', { limit: 20, sessionId }, signal),
+      publish: ({ records }) => {
         const prev = snapshotRef.current
         snapshotRef.current = new Map(records.map((r) => [r.id, r.status]))
         if (prev === null) {
@@ -354,16 +356,29 @@ function useCronWatcher(sessionId: string | null): void {
         if (events.length === 0) return
         console.info('[dsh-cron]', events.length, 'task run(s) finished:', events.map((e) => `${e.record.taskId}:${e.kind}`).join(', '))
         notifyEvents(events.map(event => ({ ...event, record: { ...event.record, sessionId } })))
-      } catch (error) {
-        // API unreachable (host restarting?) — stay quiet, retry next poll.
-        console.warn('[dsh-cron] watcher poll failed:', error)
-      }
+      },
+      fail: error => {
+        // Do not log raw server/transport errors: they may contain private data.
+        console.warn(error instanceof ReadTimeoutError
+          ? '[dsh-cron] watcher history request timed out; will retry on the next poll.'
+          : '[dsh-cron] watcher history request failed; will retry on the next poll.')
+      },
+    })
+    const poll = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      return reader.run()
     }
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') reader.cancel()
+      else void poll()
+    }
+    document.addEventListener('visibilitychange', visibility)
     void poll()
     const timer = setInterval(poll, POLL_MS)
     return () => {
-      stopped = true
+      reader.stop()
       clearInterval(timer)
+      document.removeEventListener('visibilitychange', visibility)
     }
   }, [sessionId])
 }
@@ -515,31 +530,16 @@ function CronPanel({ t, tab, sessionId, visible, signal }: { t: T; tab: DrawerTa
   const [pending, setPending] = useState<Set<string>>(new Set())
   const pendingRef = useRef(new Set<string>())
   const leaseRef = useRef<ReturnType<typeof createRequestLease> | null>(null)
+  const pollRef = useRef<ReturnType<typeof createReadPoll> | null>(null)
   const ownerRef = useRef(sessionId)
   ownerRef.current = sessionId
 
-  const refresh = useCallback(async () => {
-    const lease = leaseRef.current
-    if (!visible || !lease?.alive()) return
-    const request = lease.begin()
-    setLoading(true)
-    try {
-      const [listResult, historyResult] = await Promise.all([
-        api<{ tasks: TaskView[] }>('list', { sessionId }, lease.signal),
-        api<{ records: RunRecord[] }>('history', { limit: 50, sessionId }, lease.signal),
-      ])
-      if (!lease.accepts(request)) return
-      setTasks(listResult.tasks)
-      setRecords(historyResult.records)
-      setEnabledCount(listResult.tasks.filter((task) => task.enabled).length, sessionId)
-      setLoaded(true)
-      setError('')
-    } catch (err) {
-      if (lease.accepts(request)) setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      if (lease.accepts(request)) setLoading(false)
-    }
-  }, [sessionId, visible])
+  const refresh = useCallback((afterMutation = false) => {
+    // A pre-action snapshot must not stand in for the post-action refresh.
+    if (afterMutation) pollRef.current?.cancel()
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    return pollRef.current?.run()
+  }, [])
 
   useEffect(() => {
     setEditingId(null)
@@ -549,12 +549,44 @@ function CronPanel({ t, tab, sessionId, visible, signal }: { t: T; tab: DrawerTa
     if (!visible || signal?.aborted) return
     const lease = createRequestLease(sessionId, () => ownerRef.current, signal)
     leaseRef.current = lease
+    const reader = createReadPoll({
+      signal: lease.signal,
+      alive: lease.alive,
+      read: signal => Promise.all([
+        api<{ tasks: TaskView[] }>('list', { sessionId }, signal),
+        api<{ records: RunRecord[] }>('history', { limit: 50, sessionId }, signal),
+      ]),
+      publish: ([listResult, historyResult]) => {
+        setTasks(listResult.tasks)
+        setRecords(historyResult.records)
+        setEnabledCount(listResult.tasks.filter((task) => task.enabled).length, sessionId)
+        setLoaded(true)
+        setError('')
+      },
+      fail: error => setError(error instanceof ReadTimeoutError
+        ? t('panel.timeout')
+        : error instanceof Error ? error.message : String(error)),
+      started: () => setLoading(true),
+      settled: () => setLoading(false),
+    })
+    pollRef.current = reader
     void refresh()
     const timer = setInterval(() => void refresh(), 10_000)
-    const stop = () => { lease.stop(); clearInterval(timer) }
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') reader.cancel()
+      else void refresh()
+    }
+    document.addEventListener('visibilitychange', visibility)
+    const stop = () => {
+      lease.stop()
+      reader.stop()
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', visibility)
+      if (pollRef.current === reader) pollRef.current = null
+    }
     signal?.addEventListener('abort', stop, { once: true })
     return () => { stop(); signal?.removeEventListener('abort', stop) }
-  }, [refresh, sessionId, visible, signal])
+  }, [refresh, sessionId, visible, signal, t])
 
   const act = async (method: string, payload: Record<string, unknown>) => {
     const lease = leaseRef.current
@@ -567,7 +599,7 @@ function CronPanel({ t, tab, sessionId, visible, signal }: { t: T; tab: DrawerTa
       await api(method, { ...payload, sessionId }, lease.signal)
       if (!lease.alive()) return
       setDeletingId(null)
-      await refresh()
+      await refresh(true)
     } catch (err) {
       if (lease.alive()) setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -592,7 +624,7 @@ function CronPanel({ t, tab, sessionId, visible, signal }: { t: T; tab: DrawerTa
             {tasks.map((task) => (
               <div key={task.id} className={task.enabled ? styles.row : styles.rowDisabled}>
                 {editingId === task.id ? (
-                  <EditTaskForm t={t} task={task} sessionId={sessionId} signal={leaseRef.current?.signal} onDone={() => { setEditingId(null); void refresh() }} />
+                  <EditTaskForm t={t} task={task} sessionId={sessionId} signal={leaseRef.current?.signal} onDone={() => { setEditingId(null); void refresh(true) }} />
                 ) : (
                   <>
                     <div className={styles.rowHead}>
