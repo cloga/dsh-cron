@@ -777,7 +777,7 @@ export function apply(ctx, config) {
         if (!meta.cwd) {
           throw new Error('invalid or non-root session persistence handle header')
         }
-        const result = await handle.read({ signal })
+        const result = await handle.read(undefined, undefined, { signal })
         signal.throwIfAborted()
         // 0.1.3 returns an array; 0.1.5 returns an ownership-tagged slice.
         // Cron only observes events to select model/preset; it never mutates or

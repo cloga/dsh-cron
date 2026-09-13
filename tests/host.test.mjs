@@ -59,8 +59,11 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
       if (Object.hasOwn(options, 'badHandle')) return options.badHandle
       return {
         header: inspected.meta,
-        read: async () => {
+        read: async (offset, length, readOptions) => {
           persistenceReads.push(id)
+          assert.equal(offset, undefined, 'read the entire event log without an offset')
+          assert.equal(length, undefined, 'read the entire event log without a slice limit')
+          assert.ok(readOptions?.signal instanceof AbortSignal, 'cancellation is the third public read argument')
           if (options.persistenceReadError) throw options.persistenceReadError
           if (Object.hasOwn(options, 'readResult')) return options.readResult
           return options.eventState
