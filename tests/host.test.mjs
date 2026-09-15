@@ -18,6 +18,7 @@ console.log('✓ Config schema defaults')
 function makeCtx(storagePath, historyPath, configTasks, options = {}) {
   const fired = []
   const tools = new Map()
+  const commands = new Map()
   const routes = []
   const disposers = []
   const listeners = new Map()
@@ -77,8 +78,9 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
       }
     }
   } else {
-    sessionPersistence.inspect = async (id) => {
+    sessionPersistence.inspect = async (id, signal) => {
       persistenceInspects.push(id)
+      if (options.inspectSession) return options.inspectSession(id, signal)
       return inspected
     }
   }
@@ -111,6 +113,12 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
     // Read-only HTTP fixtures do not start the autonomous scheduler at all.
     effect: (fn) => { if (!options.skipSchedulerEffects) disposers.push(fn()) },
     inject: () => {},
+    get: (name) => options.commands && name === 'commands' ? {
+      register: (definition) => {
+        commands.set(definition.name, definition)
+        return () => commands.delete(definition.name)
+      },
+    } : undefined,
     tools: { register: (def) => tools.set(def.name, def) },
   }
   if (options.http) {
@@ -132,9 +140,33 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
   }))
   const emit = (event, ...args) => listeners.get(event)?.(...args)
   return {
-    ctx, fired, tools, routes, disposers, mockAgent, mockSession, emit, roots, resumes, mounts, selections,
+    ctx, fired, tools, commands, routes, disposers, mockAgent, mockSession, emit, roots, resumes, mounts, selections,
     persistenceOpens, persistenceReads, persistenceCloses, persistenceInspects, warnings,
   }
+}
+
+function transferRequest(transfers, overrides = {}) {
+  return {
+    expectedPreset: 'coding',
+    expectedCwd: 'C:\\workspace',
+    transfers,
+    ...overrides,
+  }
+}
+
+function invokeTransfer(run, input, options = {}) {
+  const command = run.commands.get('cron-transfer')
+  assert.ok(command, 'cron-transfer command registered')
+  return command.handler({
+    agent: options.agent ?? run.mockAgent,
+    rawInput: typeof input === 'string' ? input : JSON.stringify(input),
+    attachments: options.attachments ?? [],
+    signal: options.signal ?? new AbortController().signal,
+  })
+}
+
+function writeTaskStore(file, tasks, runs = {}, overrides = {}) {
+  writeFileSync(file, JSON.stringify({ version: 1, tasks, runs, overrides }, null, 2))
 }
 
 async function callHttp(route, method, payload, observe) {
@@ -422,7 +454,8 @@ const configTasks = [
 
 const run1 = makeCtx(storagePath, historyPath, configTasks)
 assert.deepEqual([...run1.tools.keys()].sort(), ['cron_add', 'cron_history', 'cron_list', 'cron_remove', 'cron_update'], 'tools registered')
-console.log('✓ tools registered (incl. cron_history)')
+assert.equal(run1.commands.size, 0, 'missing optional command service leaves scheduling unchanged')
+console.log('✓ tools registered (incl. cron_history); command service remains optional')
 
 await new Promise((r) => setTimeout(r, 4200))
 
@@ -525,6 +558,543 @@ await run1.tools.get('cron_update').execute({ id: 'other-owned', prompt: 'update
 await run1.tools.get('cron_remove').execute({ id: 'other-owned' }, { agent: ownerTwo })
 assert.deepEqual(JSON.parse(await run1.tools.get('cron_history').execute({ limit: 10 }, { agent: ownerTwo })), [])
 console.log('✓ model-tool root Session ownership and per-session authorization')
+
+// --- Issue #41: formal human-command hot owner transfer. All persistence,
+// Sessions, events and tasks in this section are synthetic temp fixtures.
+const validTransferTarget = (id, overrides = {}, events = []) => ({
+  meta: { id, cwd: 'C:\\workspace', agentPreset: 'coding', ...overrides },
+  events,
+})
+const assertCommandError = async (pending, pattern) => {
+  const result = await pending
+  assert.equal(result.kind, 'error')
+  if (pattern) assert.match(result.text, pattern)
+  assert.equal(result.text.includes('\n'), false, 'command errors never expose raw stacks')
+  return result
+}
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-validation-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [
+    { id: 'dyn-a', prompt: 'private a', every: 3600, sessionId: 'owner-a', enabled: true },
+    { id: 'dyn-b', prompt: 'private b', every: 3600, sessionId: 'owner-b', enabled: true },
+    { id: 'target-owned', prompt: 'existing target', every: 3600, sessionId: 'target-used', enabled: true },
+  ])
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [
+    { id: 'configured', prompt: 'static', every: 3600, sessionId: 'owner-config' },
+  ], { commands: true })
+  try {
+    const command = transferRun.commands.get('cron-transfer')
+    assert.ok(command)
+    assert.equal(command.recordInput, false)
+    assert.deepEqual(command.input, { hint: '<JSON>' })
+    assert.equal([...transferRun.tools.keys()].includes('cron_transfer'), false, 'transfer is not a model tool')
+    assert.equal(transferRun.routes.length, 0, 'transfer adds no HTTP surface')
+
+    const child = { id: 'child', session: { id: 'child-session' } }
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-a' },
+    ]), { agent: child }), /top-level root Agent/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-a' },
+    ]), { attachments: [{ type: 'image', data: 'synthetic' }] }), /attachments/)
+    await assertCommandError(invokeTransfer(transferRun, '{'), /strict JSON object/)
+    await assertCommandError(invokeTransfer(transferRun, []), /exactly/)
+    await assertCommandError(invokeTransfer(transferRun, {
+      ...transferRequest([{ id: 'dyn-a', from: 'owner-a', to: 'target-a' }]), extra: true,
+    }), /exactly/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([])), /1-32/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest(
+      Array.from({ length: 33 }, (_, index) => ({ id: `task-${index}`, from: `from-${index}`, to: `to-${index}` })),
+    )), /1-32/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-a', extra: true },
+    ])), /exactly id, from, and to/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'bad id', from: 'owner-a', to: 'target-a' },
+    ])), /valid task id/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner a', to: 'target-a' },
+    ])), /valid Session ids/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-a' },
+      { id: 'dyn-a', from: 'owner-b', to: 'target-b' },
+    ])), /must each be unique/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-a' },
+      { id: 'dyn-b', from: 'owner-a', to: 'target-b' },
+    ])), /must each be unique/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-a' },
+      { id: 'dyn-b', from: 'owner-b', to: 'target-a' },
+    ])), /must each be unique/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'owner-a' },
+    ])), /already has/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'missing', from: 'owner-a', to: 'target-a' },
+    ])), /no task/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'configured', from: 'owner-config', to: 'target-a' },
+    ])), /not dynamic/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'wrong-owner', to: 'target-a' },
+    ])), /does not match from/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-used' },
+    ])), /unrelated task/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-a' },
+    ], { expectedPreset: '  ' })), /nonblank/)
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'dyn-a', from: 'owner-a', to: 'target-a' },
+    ], { expectedCwd: 'relative' })), /absolute path/)
+    assert.equal(transferRun.persistenceInspects.length, 0, 'synchronous validation never inspects target Sessions')
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer optional registration, direct-root authorization, strict grammar and bounded validation')
+
+for (const testCase of [
+  { name: 'subagent origin', target: validTransferTarget('target', { origin: 'subagent' }), pattern: /could not be inspected/ },
+  { name: 'subagent depth', target: validTransferTarget('target', { delegationDepth: 1 }), pattern: /could not be inspected/ },
+  { name: 'wrong preset', target: validTransferTarget('target', { agentPreset: 'standard' }), pattern: /expectedPreset/ },
+  { name: 'latest selected preset wins', target: validTransferTarget('target', {}, [{ type: 'agent-preset/selected', data: { agentPreset: 'standard' } }]), pattern: /expectedPreset/ },
+  { name: 'wrong cwd', target: validTransferTarget('target', { cwd: 'C:\\other' }), pattern: /expectedCwd/ },
+  { name: 'nonblank target', target: validTransferTarget('target', {}, [{ type: 'turn/start', data: {} }]), pattern: /not blank/ },
+]) {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-target-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [{ id: 'move', prompt: 'private', every: 3600, sessionId: 'owner', enabled: true }])
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    inspectSession: async () => testCase.target,
+  })
+  try {
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'move', from: 'owner', to: 'target' },
+    ])), testCase.pattern)
+    assert.equal(JSON.parse(readFileSync(taskFile, 'utf8')).tasks[0].sessionId, 'owner', `${testCase.name} keeps old owner`)
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer rejects subagent, wrong-preset, selected-preset override, wrong-cwd and nonblank targets')
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-modern-'))
+  const taskFile = join(directory, 'tasks.json')
+  const target = validTransferTarget('modern-target')
+  writeTaskStore(taskFile, [{ id: 'modern', prompt: 'private', every: 3600, sessionId: 'owner', enabled: true }])
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    persistenceApi: 'handle',
+    inspected: target,
+  })
+  let stats = 0
+  transferRun.ctx.sessionPersistence.stat = async (id, options) => {
+    assert.equal(id, 'modern-target')
+    assert.ok(options?.signal instanceof AbortSignal)
+    stats++
+    return { header: target.meta, revision: 'stable-revision' }
+  }
+  try {
+    const result = await invokeTransfer(transferRun, transferRequest([
+      { id: 'modern', from: 'owner', to: 'modern-target' },
+    ]))
+    assert.equal(result.kind, 'success')
+    assert.equal(stats, 4, 'initial and final reads each stat before and after the handle')
+    assert.deepEqual(transferRun.persistenceOpens, [
+      { id: 'modern-target', access: 'read' },
+      { id: 'modern-target', access: 'read' },
+    ])
+    assert.deepEqual(transferRun.persistenceReads, ['modern-target', 'modern-target'])
+    assert.deepEqual(transferRun.persistenceCloses, ['modern-target', 'modern-target'])
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
+for (const failure of ['read', 'close', 'header', 'revision']) {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-modern-fail-'))
+  const taskFile = join(directory, 'tasks.json')
+  const valid = validTransferTarget('modern-target')
+  const inspected = failure === 'header'
+    ? validTransferTarget('modern-target', { cwd: 'C:\\changed' })
+    : valid
+  writeTaskStore(taskFile, [{ id: 'modern-fail', prompt: 'private', every: 3600, sessionId: 'owner', enabled: true }])
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    persistenceApi: 'handle',
+    inspected,
+    ...(failure === 'read' ? { persistenceReadError: new Error('private read failure') } : {}),
+    ...(failure === 'close' ? { persistenceCloseError: new Error('private close failure') } : {}),
+  })
+  let stats = 0
+  transferRun.ctx.sessionPersistence.stat = async () => ({
+    header: valid.meta,
+    revision: failure === 'revision' && stats++ > 0 ? 'changed-revision' : 'stable-revision',
+  })
+  try {
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'modern-fail', from: 'owner', to: 'modern-target' },
+    ])), /could not be inspected/)
+    assert.equal(transferRun.persistenceOpens.length, 1)
+    assert.equal(transferRun.persistenceCloses.length, 1, `${failure} failure still closes the modern handle`)
+    assert.equal(JSON.parse(readFileSync(taskFile, 'utf8')).tasks[0].sessionId, 'owner')
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-modern-abort-'))
+  const taskFile = join(directory, 'tasks.json')
+  const target = validTransferTarget('modern-target')
+  writeTaskStore(taskFile, [{ id: 'modern-abort', prompt: 'private', every: 3600, sessionId: 'owner', enabled: true }])
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true, persistenceApi: 'handle', inspected: target,
+  })
+  transferRun.ctx.sessionPersistence.stat = async () => ({ header: target.meta, revision: 'stable-revision' })
+  let releaseRead
+  let closes = 0
+  transferRun.ctx.sessionPersistence.open = async () => ({
+    header: target.meta,
+    read: async (_offset, _length, options) => {
+      await new Promise(resolve => { releaseRead = resolve })
+      options.signal.throwIfAborted()
+      return { eventState: 'detached', events: [] }
+    },
+    close: async () => { closes++ },
+  })
+  try {
+    const controller = new AbortController()
+    const pending = invokeTransfer(transferRun, transferRequest([
+      { id: 'modern-abort', from: 'owner', to: 'modern-target' },
+    ]), { signal: controller.signal })
+    await new Promise(resolve => setImmediate(resolve))
+    controller.abort(new Error('private abort reason'))
+    releaseRead()
+    await assertCommandError(pending, /cancelled/)
+    assert.equal(closes, 1, 'aborted modern read closes its handle')
+    assert.equal(JSON.parse(readFileSync(taskFile, 'utf8')).tasks[0].sessionId, 'owner')
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer modern stat/open/read/close compatibility, stability, failure and abort guards')
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-race-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [{ id: 'race', prompt: 'before', every: 3600, sessionId: 'owner', enabled: true }])
+  const commandAgent = { id: 'command-root', session: { id: 'command-session' }, followup: () => {} }
+  const ownerAgent = { id: 'owner-root', session: { id: 'owner' }, followup: () => {} }
+  let releaseInspect
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    roots: [commandAgent, ownerAgent],
+    inspectSession: async (id) => {
+      await new Promise(resolve => { releaseInspect = resolve })
+      return validTransferTarget(id)
+    },
+  })
+  try {
+    const pending = invokeTransfer(transferRun, transferRequest([
+      { id: 'race', from: 'owner', to: 'target' },
+    ]), { agent: commandAgent })
+    await new Promise(resolve => setImmediate(resolve))
+    await transferRun.tools.get('cron_update').execute({ id: 'race', prompt: 'after' }, { agent: ownerAgent })
+    releaseInspect()
+    await assertCommandError(pending, /changed during transfer/)
+    const storedRace = JSON.parse(readFileSync(taskFile, 'utf8')).tasks[0]
+    assert.equal(storedRace.sessionId, 'owner')
+    assert.equal(storedRace.prompt, 'after', 'racing mutation is preserved rather than overwritten')
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer detects async task object/revision/owner races before commit')
+
+for (const liveChange of [
+  { modern: true, event: { type: 'turn/start', data: {} }, pattern: /not blank/ },
+  { modern: false, event: { type: 'agent-preset/selected', data: { agentPreset: 'standard' } }, pattern: /expectedPreset/ },
+]) {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-live-race-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [
+    { id: 'live-a', prompt: 'a', every: 3600, sessionId: 'owner-a', enabled: true },
+    { id: 'live-b', prompt: 'b', every: 3600, sessionId: 'owner-b', enabled: true },
+  ])
+  const commandAgent = { id: 'command-root', session: { id: 'command-session' }, followup: () => {} }
+  let liveEvents = []
+  let snapshotCalls = 0
+  const liveSession = { header: validTransferTarget('target-a').meta }
+  if (liveChange.modern) liveSession.snapshotEvents = () => { snapshotCalls++; return liveEvents }
+  else liveSession.events = liveEvents
+  const liveTarget = { id: 'target-root', session: liveSession, followup: () => {} }
+  let targetBReads = 0
+  let releaseTargetB
+  let signalTargetBFinal
+  const targetBFinal = new Promise(resolve => { signalTargetBFinal = resolve })
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    roots: [commandAgent, liveTarget],
+    inspectSession: async id => {
+      if (id === 'target-b' && ++targetBReads === 2) {
+        signalTargetBFinal()
+        await new Promise(resolve => { releaseTargetB = resolve })
+      }
+      return validTransferTarget(id)
+    },
+  })
+  try {
+    const pending = invokeTransfer(transferRun, transferRequest([
+      { id: 'live-a', from: 'owner-a', to: 'target-a' },
+      { id: 'live-b', from: 'owner-b', to: 'target-b' },
+    ]), { agent: commandAgent })
+    await targetBFinal
+    liveEvents = [liveChange.event]
+    if (!liveChange.modern) liveSession.events = liveEvents
+    releaseTargetB()
+    await assertCommandError(pending, liveChange.pattern)
+    assert.equal(snapshotCalls, liveChange.modern ? 1 : 0, 'modern snapshotEvents is preferred while legacy events remains supported')
+    assert.deepEqual(JSON.parse(readFileSync(taskFile, 'utf8')).tasks.map(task => task.sessionId), ['owner-a', 'owner-b'])
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ final live-root snapshotEvents and legacy events reject target A changes while target B is blocked')
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-abort-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [{ id: 'abort', prompt: 'private', every: 3600, sessionId: 'owner', enabled: true }])
+  let releaseInspect
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    inspectSession: async (id) => {
+      await new Promise(resolve => { releaseInspect = resolve })
+      return validTransferTarget(id)
+    },
+  })
+  try {
+    const controller = new AbortController()
+    const pending = invokeTransfer(transferRun, transferRequest([
+      { id: 'abort', from: 'owner', to: 'target' },
+    ]), { signal: controller.signal })
+    await new Promise(resolve => setImmediate(resolve))
+    controller.abort(new Error('synthetic cancellation detail must stay private'))
+    releaseInspect()
+    await assertCommandError(pending, /cancelled/)
+    assert.equal(JSON.parse(readFileSync(taskFile, 'utf8')).tasks[0].sessionId, 'owner')
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer cancellation releases ownership lock without mutation')
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-batch-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [
+    { id: 'batch-a', prompt: 'a', every: 3600, sessionId: 'owner-a', enabled: true },
+    { id: 'batch-b', prompt: 'b', every: 3600, sessionId: 'owner-b', enabled: true },
+  ])
+  const before = readFileSync(taskFile)
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    inspectSession: async (id) => id === 'target-b'
+      ? validTransferTarget(id, { agentPreset: 'wrong' })
+      : validTransferTarget(id),
+  })
+  try {
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'batch-a', from: 'owner-a', to: 'target-a' },
+      { id: 'batch-b', from: 'owner-b', to: 'target-b' },
+    ])), /expectedPreset/)
+    assert.deepEqual(readFileSync(taskFile), before, 'one invalid target prevents the whole batch')
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer target validation is all-or-none')
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-persist-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [{ id: 'persist', prompt: 'private', every: 3600, sessionId: 'owner', enabled: true }])
+  const before = readFileSync(taskFile)
+  const ownerAgent = { id: 'owner-root', session: { id: 'owner' }, followup: () => {} }
+  const commandAgent = { id: 'command-root', session: { id: 'command-session' }, followup: () => {} }
+  const transferRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    roots: [commandAgent, ownerAgent],
+    inspectSession: async id => validTransferTarget(id),
+  })
+  const originalRename = fs.renameSync
+  try {
+    fs.renameSync = (source, destination) => {
+      if (destination === taskFile) throw new Error('synthetic rename detail must stay private')
+      return originalRename(source, destination)
+    }
+    syncBuiltinESMExports()
+    await assertCommandError(invokeTransfer(transferRun, transferRequest([
+      { id: 'persist', from: 'owner', to: 'target' },
+    ]), { agent: commandAgent }), /could not persist/)
+    assert.deepEqual(readFileSync(taskFile), before, 'failed atomic rename leaves disk unchanged')
+    assert.equal(existsSync(`${taskFile}.tmp`), false, 'failed strict save cleans its temp file')
+    const ownerTasks = JSON.parse(await transferRun.tools.get('cron_list').execute({}, { agent: ownerAgent }))
+    assert.deepEqual(ownerTasks.map(task => task.id), ['persist'], 'failed strict save restores in-memory owner')
+  } finally {
+    fs.renameSync = originalRename
+    syncBuiltinESMExports()
+  }
+  try {
+    const retried = await invokeTransfer(transferRun, transferRequest([
+      { id: 'persist', from: 'owner', to: 'target' },
+    ]), { agent: commandAgent })
+    assert.equal(retried.kind, 'success', 'rollback leaves revisions eligible for a clean retry')
+    assert.equal(JSON.parse(readFileSync(taskFile, 'utf8')).tasks[0].sessionId, 'target')
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer strict persistence rolls memory/disk back and cleans temp files')
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-success-'))
+  const taskFile = join(directory, 'tasks.json')
+  const historyFile = join(directory, 'history.jsonl')
+  const now = Date.now()
+  const originalTasks = [
+    { id: 'owner-a', prompt: 'secret a', at: null, every: 3600, daily: null, cron: null, timeZone: null, sessionId: 'owner-a', enabled: true },
+    { id: 'owner-b', prompt: 'secret b', at: null, every: null, daily: '23:59', cron: null, timeZone: 'UTC', sessionId: 'owner-b', enabled: false },
+  ]
+  const originalRuns = { 'owner-a': { lastRunAt: now, firedAt: null } }
+  const originalOverrides = { 'owner-b': true }
+  writeTaskStore(taskFile, originalTasks, originalRuns, originalOverrides)
+  writeFileSync(historyFile, [
+    { id: 'done-a', seq: 0, taskId: 'owner-a', sessionId: 'owner-a', status: 'completed', excerpt: 'kept' },
+    { id: 'failed-b', seq: 1, taskId: 'owner-b', sessionId: 'owner-b', status: 'failed' },
+  ].map(record => JSON.stringify(record)).join('\n') + '\n')
+  const historyBefore = readFileSync(historyFile)
+  let followups = 0
+  const commandAgent = { id: 'command-root', session: { id: 'command-session' }, followup: () => { followups++ } }
+  const transferRun = makeCtx(taskFile, historyFile, [], {
+    commands: true,
+    roots: [commandAgent],
+    inspectSession: async id => validTransferTarget(id, { agentPreset: 'standard' }, [
+      { type: 'session/title', data: { title: 'blank target' } },
+      { type: 'session/metadata', data: { synthetic: true } },
+      { type: 'agent-preset/selected', data: { agentPreset: 'coding' } },
+    ]),
+  })
+  try {
+    const transfers = [
+      { id: 'owner-a', from: 'owner-a', to: 'target-a' },
+      { id: 'owner-b', from: 'owner-b', to: 'target-b' },
+    ]
+    const result = await invokeTransfer(transferRun, transferRequest(transfers), { agent: commandAgent })
+    assert.equal(result.kind, 'success')
+    assert.deepEqual(JSON.parse(result.text), { transfers }, 'success output contains only ids/from/to')
+    const after = JSON.parse(readFileSync(taskFile, 'utf8'))
+    assert.deepEqual(after.tasks, originalTasks.map((task, index) => ({ ...task, sessionId: transfers[index].to })), 'only owners change')
+    assert.deepEqual(after.runs, originalRuns, 'run stamps stay exact')
+    assert.deepEqual(after.overrides, originalOverrides, 'enabled overrides stay exact')
+    assert.deepEqual(readFileSync(historyFile), historyBefore, 'history stays byte-identical')
+    assert.equal(transferRun.fired.length, 0)
+    assert.equal(followups, 0, 'transfer neither follows up nor fires a task')
+    assert.deepEqual(transferRun.persistenceInspects, ['target-a', 'target-b', 'target-a', 'target-b'], 'legacy targets receive initial and final full inspections')
+  } finally {
+    transferRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer success preserves prompts/rules/stamps/overrides/history and emits only owner summary')
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-active-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [
+    { id: 'pending-run', prompt: 'pending', at: past, sessionId: 'live-owner', enabled: true },
+    { id: 'firing-run', prompt: 'firing', at: past, sessionId: 'cold-owner', enabled: true },
+  ])
+  const commandAgent = { id: 'command-root', session: { id: 'command-session' }, followup: () => {} }
+  const liveAgent = { id: 'live-root', session: { id: 'live-owner' }, followup: (message) => activeRun.fired.push(message) }
+  const activeRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    roots: [commandAgent, liveAgent],
+    inspected: { meta: { id: 'cold-owner', cwd: 'C:\\workspace', agentPreset: 'coding' }, events: [] },
+  })
+  let releaseResume
+  activeRun.ctx.agents.resume = async () => {
+    await new Promise(resolve => { releaseResume = resolve })
+    return { agent: { id: 'cold-root', session: { id: 'cold-owner' }, followup: message => activeRun.fired.push(message) } }
+  }
+  try {
+    await new Promise(resolve => setTimeout(resolve, 3200))
+    assert.equal(activeRun.fired.length, 1, 'live task has a pending delivered run')
+    await assertCommandError(invokeTransfer(activeRun, transferRequest([
+      { id: 'pending-run', from: 'live-owner', to: 'target-live' },
+    ]), { agent: commandAgent }), /active run/)
+    await assertCommandError(invokeTransfer(activeRun, transferRequest([
+      { id: 'firing-run', from: 'cold-owner', to: 'target-cold' },
+    ]), { agent: commandAgent }), /active run/)
+  } finally {
+    releaseResume?.()
+    await new Promise(resolve => setImmediate(resolve))
+    activeRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ cron-transfer rejects firing tasks and pending delivered/history runs')
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-lock-'))
+  const taskFile = join(directory, 'tasks.json')
+  writeTaskStore(taskFile, [{ id: 'locked', prompt: 'must not fire', at: past, sessionId: 'old-owner', enabled: true }])
+  const commandAgent = { id: 'command-root', session: { id: 'command-session' }, followup: () => {} }
+  let releaseInspect
+  let inspections = 0
+  const lockedRun = makeCtx(taskFile, join(directory, 'history.jsonl'), [], {
+    commands: true,
+    roots: [commandAgent],
+    inspectSession: async id => {
+      inspections++
+      if (inspections === 1) await new Promise(resolve => { releaseInspect = resolve })
+      return validTransferTarget(id)
+    },
+  })
+  try {
+    const request = transferRequest([{ id: 'locked', from: 'old-owner', to: 'new-owner' }])
+    const pending = invokeTransfer(lockedRun, request, { agent: commandAgent })
+    await new Promise(resolve => setImmediate(resolve))
+    await assertCommandError(invokeTransfer(lockedRun, request, { agent: commandAgent }), /already transferring/)
+    await new Promise(resolve => setTimeout(resolve, 3200))
+    assert.equal(lockedRun.fired.length, 0, 'scheduler fire rejects a task while it is transferring')
+    releaseInspect()
+    const result = await pending
+    assert.equal(result.kind, 'success')
+    assert.equal(lockedRun.fired.length, 0, 'successful transfer itself never follows up')
+  } finally {
+    lockedRun.disposers.forEach(dispose => dispose?.())
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+console.log('✓ overlapping transfers cannot release another command fence; scheduler remains blocked')
 
 // --- HTTP operations require and preserve the same Session owner
 const httpDir = mkdtempSync(join(tmpdir(), 'dsh-cron-http-'))
