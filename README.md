@@ -73,15 +73,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.7.0
+dsh plugin --profile web add github:cloga/dsh-cron#v0.7.1
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.7.0 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.7.0) 下载 `dsh-cron-0.7.0.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.7.1 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.7.1) 下载 `dsh-cron-0.7.1.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.7.0.tgz
+dsh plugin --profile web add ./dsh-cron-0.7.1.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -93,7 +93,7 @@ dsh plugin --profile web add ./dsh-cron-0.7.0.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.0'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.1'
 ```
 
 </details>
@@ -106,7 +106,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.0'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.7.0`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.7.1`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 
@@ -153,7 +153,7 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 - 每个 `to` 都通过当前 Core 的公开持久化 seam 验证为 root Session：现代 Core 使用 `stat → open('read') → read → close → stat` 并要求前后 revision/header 一致，旧 Core 才使用公开的 legacy `inspect`。Session ID、最新 `agent-preset/selected` 投影（没有选择事件时用 header preset）和绝对 `cwd` 必须精确匹配声明；允许 `session/title` 等元数据，但不允许已有 `turn/start`。
 - 目标 ID 互不重复，也不能已经拥有批次之外的任务。
 
-所有任务在异步检查前一起进入 transfer fence；重叠命令不能取得或释放另一个命令的 fence。初检后会并行取得一轮尽量靠近提交的完整目标快照，再次核对任务对象、revision、owner、运行状态、取消信号和目标冲突。最后同步扫描本 Host 的 live roots，用公开的 `session.header` 与 `session.snapshotEvents()` 快照（旧 Core 回退只读 `session.events`）拒绝刚开始 turn 或切换 preset 的目标；此检查与 owner 内存更新、一次严格原子写入之间没有 await。任何校验错误、竞态、取消或持久化失败都会整批回滚，不会部分转移、执行任务或发送 follow-up。
+所有任务在异步检查前一起进入 transfer fence；重叠命令不能取得或释放另一个命令的 fence。初检后会并行取得一轮尽量靠近提交的完整目标快照，再次核对任务对象、revision、owner、运行状态、取消信号和目标冲突。最后同步扫描本 Host 的 live roots，用公开的 `session.header` 与单调 `session.seq`（旧 Core 只读取公开事件数组长度）对比已经稳定验证的持久化快照，拒绝任何刚追加事件或切换身份的目标；此检查与 owner 内存更新、一次严格原子写入之间没有 await。任何校验错误、竞态、取消或持久化失败都会整批回滚，不会部分转移、执行任务或发送 follow-up。
 
 该新鲜度保证限定在**单个 DSH Host 进程**：同一 Host 的 live Session 变化会在最终同步屏障中被拒绝；不支持其他进程同时改写 Session 或 Cron 存储，调用方必须在外部序列化这种跨进程操作。
 
@@ -189,8 +189,8 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 
 | 项目 | 支持范围 |
 | --- | --- |
-| DSH Core | 保留受控 `0.1.1-rc.2`、官方 `0.1.2-rc.1`、`0.1.3-alpha.1`；v0.4.7 新增精确 `0.1.5-alpha.1` / `0.1.5-alpha.2` 冷恢复读结果适配，v0.4.8 新增官方精确 `0.1.5-rc.2`。下文区分源码合同、fixture 与真实 Host 验证；不承诺整个 0.1.5 系列兼容 |
-| 官方 Sidebar | v0.5.0 使用公开 registry + keyed body Slot；精确 `0.1.5-alpha.1` / `alpha.2` / `rc.2` 的原生模型合同可执行验证，缺少原生服务的旧基线走回退，不推断其他版本 |
+| DSH Core | 保留受控 `0.1.1-rc.2`、官方 `0.1.2-rc.1`、`0.1.3-alpha.1`、精确 `0.1.5-alpha.1` / `alpha.2` / `rc.2`；v0.7.1 新增精确 `0.1.6-alpha.1`。下文区分源码合同、fixture 与真实 Host 验证；不承诺整个 0.1.5 或 0.1.6 系列兼容 |
+| 官方 Sidebar | v0.5.0 使用公开 registry + keyed body Slot；精确 `0.1.5-alpha.1` / `alpha.2` / `rc.2` 与 `0.1.6-alpha.1` 的原生模型合同可执行验证，缺少原生服务的旧基线走回退，不推断其他版本 |
 | Better Sidebar | **可选的次级回退**；按 `0.18.0` 的公开 Client Service 合同验证；不为原生集成重新启用它，缺失/禁用时仍可独立面板 |
 | Profile | 常驻 Web / Desktop Web；一次性 headless 进程不提供未来持续调度保证 |
 | Node.js / 开发包管理器 | `^22.19.0 || >=24.0.0` / `pnpm@11.7.0` |
@@ -216,7 +216,7 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 | `storagePath` / `historyPath` | 空值表示使用 DSH Home 下的默认文件 |
 | `tasks` | 静态任务列表，每项必须显式设置 root `sessionId`；动态任务更适合通过会话工具创建 |
 
-Core 0.1.3 使用 snapshot header 与可关闭的 read handle，`read()` 返回事件数组；0.1.5-alpha.1/.2 和精确 0.1.5-rc.2 返回 `{ eventState, events }`。v0.4.7 起同时适配两种形状，只读取事件，不修改/转移事件所有权；旧 Core 的 `inspect()` 保持不变。非法 handle/结果、错误 owner 或子代理 header 会拒绝恢复；读取或关闭失败不会降级到错误的会话。更深的 DST/跨时区性质测试仍属于后续工作，不把现有覆盖描述为所有边界条件的保证。
+Core 0.1.3 使用 snapshot header 与可关闭的 read handle，`read()` 返回事件数组；精确 0.1.5-alpha.1/.2、0.1.5-rc.2 和 0.1.6-alpha.1 返回 `{ eventState, events }`。Cron 同时适配两种形状，只读取事件，不修改/转移事件所有权；旧 Core 的 `inspect()` 保持不变。0.1.6 的冷恢复继续等待异步 `AgentRegistry.resume()` 完成全部串行 `agent/created` 初始化后才投递；热转移不再调用已弃用的同步 `snapshotEvents()`，而以稳定持久化快照对比 live `session.seq`。非法 handle/结果、错误 owner、子代理 header、读取或关闭失败都会拒绝恢复，不降级到错误的会话。更深的 DST/跨时区性质测试仍属于后续工作，不把现有覆盖描述为所有边界条件的保证。
 
 </details>
 
@@ -252,10 +252,11 @@ pnpm release:check --base origin/main  # 检查已提交的 PR 候选
 | 0.1.5-alpha.1 | `5dda764ed3aa172535a7967b06ff95d9cbfe536a` |
 | 0.1.5-alpha.2 | `b2e3b2a0125854567a4a5fcba75782e42fe84901` |
 | 0.1.5-rc.2 | `fb2c4b9e698e30edb738bca4cf0618587db7d203` |
+| 0.1.6-alpha.1 | `0a15e36e7f82b6ed45af6fa9759f29b40dcd965d` |
 
-未设置 `DSH_CORE_PATH` 时只验证包声明并显式跳过源码检查。CI 在 Windows/Linux、Node 22.19/24 上检查五个精确基线。源码验证检查真实返回类型；上述三个精确 0.1.5 版本额外验证 header utilities/session 与 shell overlay/root 的 Slot 声明，并执行各自 Git 源码的 JSONL handle 类接入 Cron 冷恢复（fake storage/AgentRegistry），覆盖两种 eventState、空/非空事件、current/primed 切片、preset/model、幂等关闭和关闭后拒绝读取。rc.2 的 persistence 与 JSONL handle 源码相对 alpha.2 未变，保留已有双形状运行时适配，无需 RuntimeClient 改写。这不是完整 Core 启动、JSONL 文件迁移/IO、真实模型或已安装 Host/GUI 验证，不把 API 名称检查称为全面兼容。
+未设置 `DSH_CORE_PATH` 时只验证包声明并显式跳过源码检查。CI 在 Windows/Linux、Node 22.19/24 上检查六个精确基线。源码验证检查真实返回类型；精确 0.1.5 三个版本和 0.1.6-alpha.1 额外验证 header utilities/session 与 shell overlay/root 的 Slot 声明，并执行各自 Git 源码的 JSONL handle 类接入 Cron 冷恢复与 owner 转移（fake storage/AgentRegistry），覆盖两种 eventState、空/非空事件、current/primed 切片、preset/model、幂等关闭和关闭后拒绝读取。0.1.6 还验证串行 awaited `agent/created`、异步 resume、`session.seq` 和同步历史 API 的弃用标记。这不是完整 Core 启动、JSONL 文件迁移/IO、真实模型或已安装 Host/GUI 验证，不把 API 名称检查称为全面兼容。
 
-v0.5.0 的 `tests/official-sidebar-contract.test.mjs` 还执行上述三个精确 0.1.5 版本的原生 registry/controller/domain/store/dockkit planner；更旧两条源码基线没有原生 API，明确跳过原生用例而保留回退验证。浏览器用实际 Cron 构建、上述 rc.2 模型和合成容器检查导航、归属、分栏、状态与清理，并不加载完整官方 renderer 或代表用户 GUI 已更新。CI/Release 为浏览器明确提供 rc.2 源码，不能以缺少源码的跳过结果代替这一门禁。
+`tests/official-sidebar-contract.test.mjs` 还执行精确 0.1.5 三个版本和 0.1.6-alpha.1 的原生 registry/controller/domain/store/dockkit planner；更旧两条源码基线没有原生 API，明确跳过原生用例而保留回退验证。浏览器用实际 Cron 构建、0.1.6-alpha.1 模型和合成容器检查导航、归属、分栏、状态与清理，并不加载完整官方 renderer 或代表用户 GUI 已更新。CI/Release 为浏览器明确提供该精确源码，不能以缺少源码的跳过结果代替这一门禁。
 
 设置 `DSH_BETTER_SIDEBAR_PATH` 指向 0.18.0 源码包后，可运行 `node tests/sidebar-contract.test.mjs` 验证旧可选 reducer/Cordis 合同；不用安装或启用该插件。截图复现命令见 [图片说明](docs/images/README.md)。
 

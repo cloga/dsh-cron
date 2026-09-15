@@ -11,6 +11,7 @@ export const CORE_COMMITS = new Map([
   ['5dda764ed3aa172535a7967b06ff95d9cbfe536a', '0.1.5-alpha.1'],
   ['b2e3b2a0125854567a4a5fcba75782e42fe84901', '0.1.5-alpha.2'],
   ['fb2c4b9e698e30edb738bca4cf0618587db7d203', '0.1.5-rc.2'],
+  ['0a15e36e7f82b6ed45af6fa9759f29b40dcd965d', '0.1.6-alpha.1'],
 ])
 
 // Select fixture behavior by an exact supported version, never a 0.1.5 wildcard.
@@ -20,6 +21,7 @@ export const CORE_READ_SHAPES = new Map([
   ['0.1.5-alpha.1', 'event-state'],
   ['0.1.5-alpha.2', 'event-state'],
   ['0.1.5-rc.2', 'event-state'],
+  ['0.1.6-alpha.1', 'event-state'],
 ])
 
 export function coreReadShape(version) {

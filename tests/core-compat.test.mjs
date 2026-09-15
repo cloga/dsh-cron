@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 import { CORE_COMMITS, CORE_READ_SHAPES, coreReadShape, assertSourceIdentity, openCoreSource, assertHandleContract, assertSlotContract, declaration, loadJsonlHandle } from './core-source.mjs'
 
-const DSH_RANGE = '>=0.1.1-rc.2 <0.1.2-0 || >=0.1.2-alpha.4 <0.1.2 || >=0.1.3-alpha.1 <0.1.3-alpha.2 || 0.1.5-alpha.1 || 0.1.5-alpha.2 || 0.1.5-rc.2'
+const DSH_RANGE = '>=0.1.1-rc.2 <0.1.2-0 || >=0.1.2-alpha.4 <0.1.2 || >=0.1.3-alpha.1 <0.1.3-alpha.2 || 0.1.5-alpha.1 || 0.1.5-alpha.2 || 0.1.5-rc.2 || 0.1.6-alpha.1'
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 const requiredPeers = ['agent', 'agent-presets', 'agent-default-model', 'llm', 'session', 'session-persistence', 'tools'].map(name => `@deepseek-ai/dsh-${name}`)
 const optionalPeers = ['@deepseek-ai/dsh-host-webserver', '@deepseek-ai/dsh-web']
@@ -15,18 +15,18 @@ assert.match(manifest.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/)
 assert.equal(manifest.packageManager, 'pnpm@11.7.0')
 assert.equal(manifest.engines.node, '^22.19.0 || >=24.0.0')
 for (const name of [...requiredPeers, ...optionalPeers]) {
-  assert.equal(manifest.peerDependencies[name], DSH_RANGE, `${name} must retain legacy lines and only add exact 0.1.5-alpha.1 / alpha.2 / rc.2`)
+  assert.equal(manifest.peerDependencies[name], DSH_RANGE, `${name} must retain legacy lines and add only exact certified prereleases`)
 }
 for (const name of optionalPeers) assert.equal(manifest.peerDependenciesMeta[name]?.optional, true)
 assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-layout'))
 assert.ok(!manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-runtime'))
-console.log('✓ package policy retains legacy Core and admits only 0.1.5-alpha.1 / alpha.2 / rc.2 additions')
+console.log('✓ package policy retains legacy Core and admits only exact certified prereleases through 0.1.6-alpha.1')
 
-assert.equal(CORE_COMMITS.size, 5, 'retain all four previous exact pins plus rc.2')
+assert.equal(CORE_COMMITS.size, 6, 'retain all previous exact pins plus 0.1.6-alpha.1')
 assert.deepEqual([...CORE_READ_SHAPES.keys()], [...CORE_COMMITS.values()])
 assert.equal(coreReadShape('0.1.2-rc.1'), 'inspection')
 assert.equal(coreReadShape('0.1.3-alpha.1'), 'array')
-for (const version of ['0.1.5-alpha.1', '0.1.5-alpha.2', '0.1.5-rc.2']) {
+for (const version of ['0.1.5-alpha.1', '0.1.5-alpha.2', '0.1.5-rc.2', '0.1.6-alpha.1']) {
   assert.equal(coreReadShape(version), 'event-state', `${version} must execute the actual JSONL handle fixture`)
 }
 for (const version of ['0.1.5-alpha.3', '0.1.5-rc.1', '0.1.5-rc.3', '0.1.5']) {
@@ -54,7 +54,7 @@ if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts')))
   const modern = shape === 'event-state'
   const handles = shape !== 'inspection'
   const liveSession = read('packages/core/session/src/index.ts')
-  for (const method of ['eventAt(seq: SessionSeq)', 'snapshotEvents(', 'ownEvents(): readonly SessionEvent[]']) {
+  for (const method of ['eventAt(seq: SessionSeq)', 'snapshotEvents(', 'ownEvents(): readonly SessionEvent[]', 'get seq(): SessionLogOffset']) {
     assert.ok(liveSession.includes(method), `live Session method unavailable: ${method}`)
   }
   const persistence = read('packages/session/session-persistence/src/index.ts')
@@ -100,6 +100,25 @@ if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts')))
     assert.match(persistence, /interface SessionInspection[\s\S]*?readonly events: readonly SessionEvent\[\]/)
   }
   assert.match(read('packages/core/tools/src/index.ts'), /interface ToolExecutionInput[\s\S]*?readonly agent\?: Agent/)
+  if (version === '0.1.6-alpha.1') {
+    const agent = read('packages/core/agent/src/index.ts')
+    assert.match(agent, /async resume\(options: ResumeAgentOptions\): Promise<AgentHandle>/)
+    assert.match(agent, /await this\.ctx\.serial\(entry\.carrier, 'agent\/created', \{/)
+    assert.doesNotMatch(agent, /agent\/session-start/)
+    assert.match(liveSession, /@deprecated Existing logic may remain unmigrated for now, but new calls are prohibited\.[\s\S]*?snapshotEvents\(/)
+    const cron = readFileSync(new URL('../index.js', import.meta.url), 'utf8')
+    assert.doesNotMatch(cron, /\.snapshotEvents\s*\(/, 'Cron production code must not add a deprecated synchronous Session history read')
+    assert.match(cron, /Number\.isSafeInteger\(session\.seq\)/, 'live transfer freshness must use the public Session seq projection')
+    const boot = read('packages/boot/app-boot/src/index.ts')
+    const requiredEntries = boot.match(/const requiredStartupEntryIds = new Set<string>\(\[([\s\S]*?)\]\)/)?.[1]
+    assert.ok(requiredEntries)
+    assert.doesNotMatch(requiredEntries, /cron/, 'Cron remains an optional plugin whose activation failure must not abort DSH')
+    assert.match(boot, /Other[\s*]+inactive entries produce one warning and leave successful siblings running\./)
+    assert.match(boot, /reapply it to the boot Include without rollback/)
+    assert.match(boot, /await entry\.update\([\s\S]*?await ctx\.loader\.await\(\)[\s\S]*?activationDiagnostic\(binName, 'warning'/)
+    const watcher = read('packages/boot/app-boot/src/watch-config.ts')
+    assert.match(watcher, /await refresh\(\)[\s\S]*?ctx\.logger\.warn\('config reload at %C failed'/)
+  }
   for (const path of ['packages/core/agent', 'packages/core/session', 'packages/host/webserver', 'packages/web/web']) {
     const peer = JSON.parse(read(`${path}/package.json`))
     assert.equal(peer.version, version, `${peer.name} does not match CLI release`)

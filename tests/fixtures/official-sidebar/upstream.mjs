@@ -30,7 +30,7 @@ const require = createRequire(import.meta.url)
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const blobs = new Map()
 export function coreBlob(path) {
-  if (!/^(?:packages\/client\/(?:ui-sidebar-right|ui-sidebar-files|ui-dockkit|store)\/src\/)[\w./-]+\.(?:ts|tsx)$/.test(path) || path.split('/').includes('..')) {
+  if (!/^(?:packages\/client\/(?:ui-sidebar-right|ui-sidebar-files|ui-dockkit|store)\/src\/|packages\/util\/crypto\/src\/)[\w./-]+\.(?:ts|tsx)$/.test(path) || path.split('/').includes('..')) {
     throw new Error(`Outside readonly native fixture source allowlist: ${path}`)
   }
   if (!blobs.has(path)) blobs.set(path, execFileSync('git', ['show', `${CORE_REV}:${path}`], {
@@ -85,6 +85,7 @@ export function createCoreLoader() {
       if (name.startsWith('.')) return load(posix.join(posix.dirname(path), name))
       if (name === '@deepseek-ai/dsh-client-store') return load('packages/client/store/src/index.ts')
       if (name === '@deepseek-ai/dsh-client-ui-dockkit') return load('packages/client/ui-dockkit/src/index.ts')
+      if (name === '@deepseek-ai/dsh-util-crypto') return load('packages/util/crypto/src/index.ts')
       if (name.startsWith('@deepseek-ai/')) throw new Error(`Unreviewed Core runtime dependency ${name}`)
       return ordinary(name)
     }
@@ -108,7 +109,7 @@ export function upstreamHarness() {
   const storeSeed = () => defaultSeed ? initialSeed() : 'Guide'
   const tabs = new SidebarRightTabRegistry(ctx)
   tabs.register({ id: 'fixture/guide', kind: 'guide', title: () => 'Guide', priority: 'builtin' })
-  tabs.register({ id: 'fixture/files', kind: 'files', title: () => 'Files', priority: 'builtin', guide: [{ order: 0, title: () => 'Files' }] })
+  tabs.register({ id: 'fixture/files', kind: 'files', title: () => 'Files', priority: 'builtin', guide: [{ id: 'workspace', order: 0, title: () => 'Files' }] })
   const pins = []
   const { controller, adopt } = createSidebarRightController(tabs, (address, signal) => pins.push({ address, signal }))
   const stores = new Map()

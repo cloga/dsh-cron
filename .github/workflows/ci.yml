@@ -42,6 +42,8 @@ jobs:
             ref: b2e3b2a0125854567a4a5fcba75782e42fe84901
           - name: rc015-2
             ref: fb2c4b9e698e30edb738bca4cf0618587db7d203
+          - name: alpha016-1
+            ref: 0a15e36e7f82b6ed45af6fa9759f29b40dcd965d
     runs-on: ${{ matrix.os }}
     env:
       DSH_CORE_PATH: ${{ github.workspace }}/dsh-core
@@ -70,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DSH_CORE_PATH: ${{ github.workspace }}/dsh-sidebar-core
-      DSH_CORE_REF: fb2c4b9e698e30edb738bca4cf0618587db7d203
+      DSH_CORE_REF: 0a15e36e7f82b6ed45af6fa9759f29b40dcd965d
     steps:
       - uses: actions/checkout@v6
         with:
@@ -78,7 +80,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: deepseek-ai/deepseek-harness
-          ref: fb2c4b9e698e30edb738bca4cf0618587db7d203
+          ref: 0a15e36e7f82b6ed45af6fa9759f29b40dcd965d
           path: dsh-sidebar-core
           persist-credentials: false
       - uses: pnpm/action-setup@v6

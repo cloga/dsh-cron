@@ -20,6 +20,7 @@ const releaseWorkflow = readFileSync(join(root, '.github', 'workflows', 'release
 for (const marker of [
   'a66e4702047846cdaa10c66c9d3df3951f5ea70d',
   'd347e703908d0406b7a7ef80e3a0e594d86b2215',
+  '0a15e36e7f82b6ed45af6fa9759f29b40dcd965d',
   'ref: ${{ matrix.core.ref }}',
   'DSH_CORE_PATH: ${{ github.workspace }}/dsh-core',
 ]) assert.ok(ciWorkflow.includes(marker), `CI workflow omits ${marker}`)
@@ -27,6 +28,7 @@ for (const marker of [
   'workflow_call:',
   'a66e4702047846cdaa10c66c9d3df3951f5ea70d',
   'd347e703908d0406b7a7ef80e3a0e594d86b2215',
+  '0a15e36e7f82b6ed45af6fa9759f29b40dcd965d',
   'DSH_CORE_PATH: ${{ github.workspace }}/dsh-rc1',
   'DSH_CORE_PATH: ${{ github.workspace }}/dsh-013-alpha1',
   'node scripts/release-policy.mjs --plan',

@@ -1286,22 +1286,28 @@ export function apply(ctx, config) {
     return current
   }
 
-  function validateLiveTransferTargets(input) {
+  function validateLiveTransferTargets(input, inspectedTargets) {
     const roots = ctx.agents.roots()
-    for (const transfer of input.transfers) {
+    for (let index = 0; index < input.transfers.length; index += 1) {
+      const transfer = input.transfers[index]
       const matches = roots.filter((agent) => String(agent.session?.header?.id ?? agent.session?.id) === transfer.to)
       if (matches.length === 0) continue
       if (matches.length !== 1) transferFailure(`target Session "${transfer.to}" has ambiguous live ownership`)
       const session = matches[0].session
       if (!session?.header) transferFailure(`live target Session "${transfer.to}" cannot be verified safely`)
-      let events
+      const inspected = inspectedTargets[index]
+      const liveLength = Number.isSafeInteger(session.seq)
+        ? Number(session.seq)
+        : Array.isArray(session.events) ? session.events.length : undefined
+      if (liveLength === undefined) transferFailure(`live target Session "${transfer.to}" cannot be verified safely`)
       try {
-        events = typeof session.snapshotEvents === 'function' ? session.snapshotEvents() : session.events
+        assertSamePersistedHeader(inspected?.meta, session.header, transfer.to)
       } catch {
-        transferFailure(`live target Session "${transfer.to}" cannot be verified safely`)
+        transferFailure(`live target Session "${transfer.to}" changed during transfer`)
       }
-      if (!Array.isArray(events)) transferFailure(`live target Session "${transfer.to}" cannot be verified safely`)
-      validateTransferTarget({ meta: session.header, events }, transfer, input)
+      if (liveLength !== inspected?.events?.length) {
+        transferFailure(`live target Session "${transfer.to}" changed during transfer`)
+      }
     }
   }
 
@@ -1352,7 +1358,7 @@ export function apply(ctx, config) {
         // Final live-root projection is deliberately synchronous. In one Host,
         // a target that started a turn after persistence inspection is rejected
         // with no await before owner mutation and strict persistence.
-        validateLiveTransferTargets(input)
+        validateLiveTransferTargets(input, inspectedTargets)
         for (let index = 0; index < input.transfers.length; index += 1) {
           captures[index].task.sessionId = input.transfers[index].to
         }

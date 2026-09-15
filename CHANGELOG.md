@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1
+
+- Add exact compatibility with upstream DSH `0.1.6-alpha.1` at commit `0a15e36e7f82b6ed45af6fa9759f29b40dcd965d` (#44; coordination cloga/dsh-windows-ops#161) while retaining every previously certified Core baseline. Peer policy remains exact for the new prerelease rather than widening to an unverified 0.1.6 range.
+- Remove Cron's production dependency on deprecated synchronous `Session.snapshotEvents()` reads. The final single-Host `/cron-transfer` fence now compares the already validated persisted snapshot with the live root's public immutable header and monotonic `session.seq`; legacy Core falls back only to its public event-array length. Any live append or identity change aborts the whole batch before mutation.
+- Certify the awaited serialized `agent/created` lifecycle and asynchronous `AgentRegistry.resume()` boundary from the exact tag. Cron already awaits resume and setup before delivery, so no replacement lifecycle listener or `agent/session-start` compatibility shim is introduced.
+- Execute the exact tagged JSONL handle class through cold resume and ownership transfer, including cancellation, event ownership, close-before-resume and idempotent close. Run the real tagged native Sidebar registry/controller/domain/store/planners and browser fixture against 0.1.6-alpha.1, including its new crypto utility dependency and guide-entry identity contract.
+- Audit optional plugin startup failures, Sandbox/Shell cancellation, workflow/PTC sandbox reuse, config HMR no-rollback behavior, durable attachment/image changes, and experimental Team packages. Cron neither imports nor invokes those surfaces; scheduling, required tools, persistent task/history format, restart reconciliation, root ownership and optional web/command behavior remain unchanged.
+- This pre-1.0 patch adapts the published 0.7.0 navigation hub and existing scheduler to one exact upstream prerelease without broadening compatibility or changing hub privacy/navigation behavior.
+
 ## 0.7.0
 
 - Add a plugin-owned global **Scheduled Sessions** navigation hub through the official `sidebar.panellist` and keyed `main` Slots (#43). It lists every current dsh-cron owner once, including deliberately prepared blank Sessions that Core Workspace navigation does not yet show.
