@@ -42,12 +42,14 @@ async function fixture() {
   }
   const requests = []
   let behavior = () => 'ok'
+  let hubOwners = []
   const task = owner => ({ id: `task-${owner}`, sessionId: owner, prompt: `Prompt ${owner}`, enabled: true, origin: 'dynamic', schedule: { everySeconds: 60 }, nextRunAt: null })
-  const response = (request, result) => ({ json: async () => ({ ok: true, result: result ?? (request.method === 'list' ? { tasks: [task(request.owner)] } : request.method === 'history' ? { records: [] } : {}) }) })
+  const response = (request, result) => ({ json: async () => ({ ok: true, result: result ?? (request.method === 'list' ? { tasks: [task(request.owner)] } : request.method === 'history' ? { records: [] } : request.method === 'owners' ? hubOwners : {}) }) })
   globalThis.fetch = (url, options) => {
     const payload = JSON.parse(options.body)
     const request = { method: url.split('/').at(-1), owner: payload.sessionId, payload, signal: options.signal }
-    assert.ok(request.owner, 'all requests explicitly name their owner')
+    if (request.method === 'owners') assert.deepEqual(payload, {}, 'global owner index sends no meaningful payload')
+    else assert.ok(request.owner, 'owner-scoped requests explicitly name their owner')
     requests.push(request)
     return new Promise((resolve, reject) => {
       request.resolve = result => resolve(response(request, result))
@@ -87,6 +89,22 @@ async function fixture() {
   }
   const renderWatcher = async (sessionId = 'A') => act(async () => root.render(h(React.Fragment, null,
     h(slots.get('cron-trigger'), { sessionId, t }), h(slots.get('cron-drawer'), { t }))))
+  const openedSessions = []
+  let hubActivated = false
+  const renderHub = async ({ open = true, owners = hubOwners, byId = {} } = {}) => {
+    hubOwners = owners
+    if (!hubActivated) {
+      optional.get('uiWorkspace')({
+        get: name => name === 'uiWorkspace' ? { openSession: id => openedSessions.push(id) } : name === 'sessions' ? {} : undefined,
+        effect: ctx.effect,
+        slots: ctx.slots,
+      })
+      hubActivated = true
+    }
+    await act(async () => panel.render(h(slots.get(plugin.SCHEDULED_SESSIONS_ID), {
+      open, t, useSessions: select => select({ byId }),
+    })))
+  }
   const setVisibility = async state => act(async () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: state })
     document.dispatchEvent(new dom.window.Event('visibilitychange'))
@@ -95,7 +113,7 @@ async function fixture() {
   const click = async label => act(async () => { assert.ok(button(label), `${label} button exists`); button(label).click() })
   let closed = false
   return {
-    requests, timers, advance, renderPanel, renderWatcher, setVisibility, click, button, act, panel,
+    requests, timers, advance, renderPanel, renderWatcher, renderHub, openedSessions, setVisibility, click, button, act, panel,
     behavior: value => { behavior = value },
     text: () => document.getElementById('panel').textContent,
     alert: () => document.querySelector('[role="alert"]')?.textContent,
@@ -297,5 +315,62 @@ test('a failed half-batch aborts its sibling; a hanging JSON body is deadline bo
     assert.match(f.alert(), /timed out/i)
     await f.act(async () => body.resolveBody({ tasks: [{ id: 'late-body', prompt: 'LATE BODY', enabled: true, schedule: {} }] }))
     assert.doesNotMatch(f.text(), /LATE BODY/)
+  } finally { await f.close() }
+})
+
+test('global hub renders five privacy-minimal owners and opens an exact blank cordis session', async () => {
+  const f = await fixture()
+  try {
+    const owners = ['A', 'B', 'C', 'D', 'unknown'].map((sessionId, index) => ({
+      sessionId, taskCount: index + 1, enabledCount: index, nextRunAt: index === 0 ? null : `2026-09-1${index}T09:00:00Z`,
+    }))
+    await f.renderHub({ owners, byId: {
+      A: { displayTitle: 'Morning review' },
+      B: { blank: true, projectionValues: { agentPreset: 'cordis' } },
+      C: { blank: true, displayTitle: 'Prepared blank' },
+      D: { displayTitle: 'Release watch', running: true },
+    } })
+    assert.equal(document.querySelectorAll('.dsh-cron-hubRow').length, 5)
+    assert.match(f.text(), /Morning review/)
+    assert.match(f.text(), /New session/)
+    assert.match(f.text(), /cordis/)
+    assert.match(f.text(), /Prepared blank/)
+    assert.match(f.text(), /Running/)
+    assert.match(f.text(), /unknown/)
+    assert.equal(document.querySelectorAll('.dsh-cron-hubRow')[4].disabled, true, 'an owner absent from the public Session list cannot call openSession')
+    await f.act(async () => document.querySelectorAll('.dsh-cron-hubRow')[1].click())
+    assert.deepEqual(f.openedSessions, ['B'], 'row navigation calls public openSession with the exact id')
+    assert.deepEqual([...new Set(f.requests.map(request => request.method))], ['owners'], 'hub never calls task, prompt or history APIs')
+  } finally { await f.close() }
+})
+
+test('global hub cancels hidden reads, rejects stale results and exposes retryable errors', async () => {
+  const f = await fixture()
+  try {
+    f.behavior(request => request.method === 'owners' ? 'hang' : 'ok')
+    await f.renderHub({ owners: [{ sessionId: 'stale', taskCount: 1, enabledCount: 1, nextRunAt: null }] })
+    const stale = f.requests.at(-1)
+    await f.renderHub({ open: false })
+    assert.equal(stale.signal.aborted, true)
+    await f.act(async () => stale.resolve([{ sessionId: 'stale', taskCount: 1, enabledCount: 1, nextRunAt: null }]))
+    assert.doesNotMatch(f.text(), /stale/)
+    f.behavior(request => request.method === 'owners' ? 'error' : 'ok')
+    await f.renderHub({ open: true, owners: [] })
+    assert.match(f.alert(), /Could not refresh scheduled sessions/)
+    f.behavior(() => 'ok')
+    await f.click('Retry')
+    assert.match(f.text(), /No sessions currently own scheduled tasks/)
+    f.behavior(request => request.method === 'owners' ? 'hang' : 'ok')
+    const beforePoll = f.requests.length
+    await f.advance(20_000)
+    assert.equal(f.requests.length, beforePoll + 1, 'visible hub continues bounded polling')
+    const hidden = f.requests.at(-1)
+    await f.setVisibility('hidden')
+    assert.equal(hidden.signal.aborted, true, 'document hide cancels the active global owner read')
+    const hiddenCount = f.requests.length
+    await f.advance(40_000)
+    assert.equal(f.requests.length, hiddenCount, 'document-hidden intervals do not start owner reads')
+    await f.setVisibility('visible')
+    assert.equal(f.requests.length, hiddenCount + 1, 'document reveal refreshes the owner index once')
   } finally { await f.close() }
 })

@@ -73,14 +73,26 @@ if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts')))
     if (modern) {
       const state = declaration(read('packages/core/session/src/types.ts'), 'SessionSeedEventState', ts.isTypeAliasDeclaration)
       assert.equal(state.type.getText(), "'detached' | 'shared-frozen'")
-      for (const [path, name, scope] of [
-        ['ui-conversation/src/client/contract/slots.ts', 'conversation.session.header.utilities', 'session'],
-        ['ui-layout/src/client/index.ts', 'shell.overlay', 'root'],
+      for (const [path, name, kind, scope] of [
+        ['ui-conversation/src/client/contract/slots.ts', 'conversation.session.header.utilities', 'list', 'session'],
+        ['ui-layout/src/client/index.ts', 'shell.overlay', 'list', 'root'],
+        ...(version === '0.1.5-alpha.1' ? [] : [
+          ['ui-sidebar/src/client/contract/slots.ts', 'sidebar.panellist', 'list', 'root'],
+          ['ui-layout/src/client/index.ts', 'main', 'keyed', 'root'],
+        ]),
       ]) {
         const slots = read(`packages/client/${path}`)
-        assertSlotContract(slots, name, 'list', scope)
-        assert.throws(() => assertSlotContract(slots, name, 'single', scope), /kind/)
-        assert.throws(() => assertSlotContract(slots, name, 'list', scope === 'root' ? 'session' : 'root'), /scope/)
+        assertSlotContract(slots, name, kind, scope)
+        assert.throws(() => assertSlotContract(slots, name, kind === 'list' ? 'single' : 'list', scope), /kind/)
+        assert.throws(() => assertSlotContract(slots, name, kind, scope === 'root' ? 'session' : 'root'), /scope/)
+      }
+      const workspaceNavigation = read('packages/client/ui-workspace/src/client/navigation.ts')
+      if (version === '0.1.5-alpha.1') {
+        assert.doesNotMatch(workspaceNavigation, /openSession\(sessionId: SessionId\): void/)
+        assert.doesNotMatch(read('packages/client/ui-sidebar/src/client/contract/slots.ts'), /'sidebar\.panellist'/)
+        console.log('✓ Core alpha.1 lacks the optional global hub; existing Cron surfaces remain supported')
+      } else {
+        assert.match(workspaceNavigation, /openSession\(sessionId: SessionId\): void/)
       }
       await verifySourceHandleColdResume(read, version)
     }
@@ -115,6 +127,7 @@ if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts')))
     ['@deepseek-ai/dsh-client-locale', 'locale'],
     ['@deepseek-ai/dsh-client-ui-conversation', 'ui-conversation'],
     ['@deepseek-ai/dsh-client-ui-layout', 'ui-layout'],
+    ['@deepseek-ai/dsh-client-ui-workspace', 'ui-workspace'],
   ])
   for (const name of manifest.dsh.client.inject) {
     assert.ok(clients.has(name), `unmapped client dependency ${name}`)

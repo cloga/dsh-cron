@@ -9,6 +9,8 @@ import { css, styles } from './styles.js'
 import { CRON_TAB_ID, createSidebarTab, supportsSidebar, type SidebarService, type SidebarProps } from './sidebar.js'
 import { registerNativeSidebar, openNative, ownerTitle, createPanelConsumers, createRequestLease, type NativeController, type NativeBodyProps, type UseSessions } from './native-sidebar.js'
 import { createReadPoll, ReadTimeoutError } from './read-poll.js'
+import { registerScheduledSessionsHub } from './global-hub.js'
+export { ownerLabel, SCHEDULED_SESSIONS_ID } from './global-hub.js'
 
 /** Services required from the client runtime. */
 export const inject = ['slots', 'locale']
@@ -984,6 +986,7 @@ export function apply(ctx: any) {
     document.head.append(tag)
     return () => tag.remove()
   }, 'dsh-cron: styles')
+  registerScheduledSessionsHub(ctx, () => ctx.locale.bind('cron'))
   registerNativeSidebar(ctx, CronNativePanel, () => ctx.locale.bind('cron')('trigger.aria'), service => {
     nativeSidebar = service
     if (!service) panelConsumers.clearNative()

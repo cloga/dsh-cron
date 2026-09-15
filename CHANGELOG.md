@@ -1,13 +1,22 @@
 # Changelog
 
-## 0.6.1
+## 0.7.1
 
 - Add exact compatibility with upstream DSH `0.1.6-alpha.1` at commit `0a15e36e7f82b6ed45af6fa9759f29b40dcd965d` (#44; coordination cloga/dsh-windows-ops#161) while retaining every previously certified Core baseline. Peer policy remains exact for the new prerelease rather than widening to an unverified 0.1.6 range.
 - Remove Cron's production dependency on deprecated synchronous `Session.snapshotEvents()` reads. The final single-Host `/cron-transfer` fence now compares the already validated persisted snapshot with the live root's public immutable header and monotonic `session.seq`; legacy Core falls back only to its public event-array length. Any live append or identity change aborts the whole batch before mutation.
 - Certify the awaited serialized `agent/created` lifecycle and asynchronous `AgentRegistry.resume()` boundary from the exact tag. Cron already awaits resume and setup before delivery, so no replacement lifecycle listener or `agent/session-start` compatibility shim is introduced.
 - Execute the exact tagged JSONL handle class through cold resume and ownership transfer, including cancellation, event ownership, close-before-resume and idempotent close. Run the real tagged native Sidebar registry/controller/domain/store/planners and browser fixture against 0.1.6-alpha.1, including its new crypto utility dependency and guide-entry identity contract.
 - Audit optional plugin startup failures, Sandbox/Shell cancellation, workflow/PTC sandbox reuse, config HMR no-rollback behavior, durable attachment/image changes, and experimental Team packages. Cron neither imports nor invokes those surfaces; scheduling, required tools, persistent task/history format, restart reconciliation, root ownership and optional web/command behavior remain unchanged.
-- This pre-1.0 patch is a bounded compatibility adaptation. Merge and immutable Release publication remain blocked until the final fork 0.1.6 interface and the Windows Ops 0.1.5 baseline are explicitly cleared.
+- This pre-1.0 patch adapts the published 0.7.0 navigation hub and existing scheduler to one exact upstream prerelease without broadening compatibility or changing hub privacy/navigation behavior.
+
+## 0.7.0
+
+- Add a plugin-owned global **Scheduled Sessions** navigation hub through the official `sidebar.panellist` and keyed `main` Slots (#43). It lists every current dsh-cron owner once, including deliberately prepared blank Sessions that Core Workspace navigation does not yet show.
+- Add one same-origin read-only `owners` HTTP method that returns only `sessionId`, task/enabled counts and the earliest next-run time. It skips legacy unbound records without deleting or rewriting them, reads no Session events or history, wakes no Agent, exposes no task id/prompt/rule/excerpt, and does not mutate task records, run stamps, overrides or Cron's next-slot cache.
+- Resolve owner titles, blank/running state and Agent preset only from the Client's existing public Session-list snapshot. Row activation calls public `uiWorkspace.openSession(sessionId)` and never fires a task, prompts a model, creates a turn or replaces the existing per-Session task/history panels.
+- Keep the hub optional: missing `uiWorkspace`, `sessions`, `sidebar.panellist` or `main` capability contributes no global entry while all existing scheduler, model-tool, current-owner HTTP, native/Better Sidebar and standalone fallback behavior remains active.
+- Bound the global read with single-flight polling, deadlines, visibility/unmount cancellation and stale-result guards. Add explicit loading, empty, retryable error and responsive accessible list states, plus synthetic Host/React regressions over five owners including blank `cordis` Sessions.
+- This pre-1.0 minor release adds a human navigation index, not a cross-owner task management API or a DSH Core patch. Existing task ownership, prompts, schedules, history, transfer semantics and supported Core ranges are unchanged.
 
 ## 0.6.0
 

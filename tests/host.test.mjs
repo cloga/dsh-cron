@@ -1106,9 +1106,40 @@ const route = httpRun.routes[0]
 assert.ok(route, 'HTTP route registered')
 assert.equal((await callHttp(route, 'add', { id: 'unknown', prompt: 'no', every: 120, sessionId: 'sess-unknown' })).status, 400)
 assert.equal((await callHttp(route, 'add', { id: 'subagent', prompt: 'no', every: 120, sessionId: 'sess-child' })).status, 400)
-assert.equal((await callHttp(route, 'add', { id: 'http-one', prompt: 'one', every: 120, sessionId: 'sess-1' })).status, 200)
+const addedOne = await callHttp(route, 'add', { id: 'http-one', prompt: 'one', every: 120, sessionId: 'sess-1' })
+assert.equal(addedOne.status, 200)
+const addedEarlier = await callHttp(route, 'add', { id: 'http-earlier', prompt: 'earlier', every: 30, sessionId: 'sess-1' })
+assert.equal(addedEarlier.status, 200)
 assert.equal((await callHttp(route, 'add', { id: 'http-two', prompt: 'two', every: 120, sessionId: 'sess-2' })).status, 200)
-assert.deepEqual((await callHttp(route, 'list', { sessionId: 'sess-1' })).body.result.tasks.map((task) => task.id), ['http-one'])
+assert.equal((await callHttp(route, 'add', {
+  id: 'prompt-history-title-secret',
+  prompt: 'adversarial prompt with history excerpt, title, preset, token and credentials',
+  cron: '* * * * *', timeZone: 'UTC', sessionId: 'sess-1',
+})).status, 200)
+assert.equal((await callHttp(route, 'toggle', { id: 'prompt-history-title-secret', enabled: false, sessionId: 'sess-1' })).status, 200)
+const ownerViewsBefore = (await callHttp(route, 'list', { sessionId: 'sess-1' })).body.result.tasks
+const ownerTaskBytes = readFileSync(join(httpDir, 'tasks.json'))
+const ownerHistoryExisted = existsSync(join(httpDir, 'history.jsonl'))
+const ownerResumeCount = httpRun.resumes.length
+const ownerPersistenceCounts = [httpRun.persistenceOpens.length, httpRun.persistenceReads.length, httpRun.persistenceInspects.length]
+const owners = await callHttp(route, 'owners', {})
+assert.equal(owners.status, 200)
+assert.deepEqual(owners.body.result, [
+  { sessionId: 'sess-1', taskCount: 3, enabledCount: 2, nextRunAt: addedEarlier.body.result.task.nextRunAt },
+  { sessionId: 'sess-2', taskCount: 1, enabledCount: 1, nextRunAt: owners.body.result[1].nextRunAt },
+], 'owners are deduplicated, sorted, counted with effective enabled state and earliest next run')
+for (const owner of owners.body.result) assert.deepEqual(Object.keys(owner).sort(), ['enabledCount', 'nextRunAt', 'sessionId', 'taskCount'])
+for (const secret of ['prompt', 'history', 'excerpt', 'title', 'preset', 'origin', 'schedule', 'id']) {
+  assert.equal(Object.hasOwn(owners.body.result[0], secret), false, `owner summary omits ${secret}`)
+}
+assert.equal((await callHttp(route, 'owners', { sessionId: 'sess-1' })).status, 400, 'owners rejects meaningful payload')
+assert.deepEqual(readFileSync(join(httpDir, 'tasks.json')), ownerTaskBytes, 'owner reads do not write task state')
+assert.equal(existsSync(join(httpDir, 'history.jsonl')), ownerHistoryExisted, 'owner reads do not load/write history')
+assert.equal(httpRun.resumes.length, ownerResumeCount, 'owner reads never resume an Agent')
+assert.deepEqual([httpRun.persistenceOpens.length, httpRun.persistenceReads.length, httpRun.persistenceInspects.length], ownerPersistenceCounts, 'owner reads never inspect Sessions')
+const ownerViewsAfter = (await callHttp(route, 'list', { sessionId: 'sess-1' })).body.result.tasks
+assert.deepEqual(ownerViewsAfter, ownerViewsBefore, 'owner index reads do not mutate observable task/cache state')
+assert.deepEqual(ownerViewsAfter.map((task) => task.id), ['http-one', 'http-earlier', 'prompt-history-title-secret'])
 assert.equal((await callHttp(route, 'update', { id: 'http-two', prompt: 'stolen', sessionId: 'sess-1' })).status, 400)
 assert.equal((await callHttp(route, 'remove', { id: 'http-two', sessionId: 'sess-1' })).status, 400)
 assert.equal((await callHttp(route, 'toggle', { id: 'http-two', enabled: false, sessionId: 'sess-1' })).status, 400)
@@ -1195,6 +1226,12 @@ for (const shape of ['legacy-header', '0.1.3-snapshot', '0.1.5-snapshot']) {
   try {
     const coldRoute = cold.routes[0]
     assert.equal(cold.disposers.length, 1, 'only the fake HTTP route effect runs, no scheduler timers')
+    const ownerIndex = await callHttp(coldRoute, 'owners', {})
+    assert.equal(ownerIndex.status, 200, 'a persisted unbound task does not hide valid owners')
+    assert.deepEqual(ownerIndex.body.result.map(owner => owner.sessionId), [
+      'sess-child', 'sess-cold', 'sess-other', 'sess-unknown',
+    ])
+    assert.ok(ownerIndex.body.result.every(owner => Object.keys(owner).sort().join(',') === 'enabledCount,nextRunAt,sessionId,taskCount'))
     const list = await callHttp(coldRoute, 'list', { sessionId: 'sess-cold' })
     assert.equal(list.status, 200, shape)
     assert.equal(list.body.ok, true)

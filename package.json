@@ -1,6 +1,6 @@
 {
   "name": "dsh-cron",
-  "version": "0.6.1",
+  "version": "0.7.1",
   "description": "Scheduled tasks for DeepSeek Harness: fire prompts into the owning root Session at a time, interval, or daily clock time, with a Web panel for tasks and run history.",
   "license": "MIT",
   "type": "module",
@@ -27,7 +27,8 @@
       "inject": [
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-layout"
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-workspace"
       ],
       "platform": "web"
     }
@@ -83,6 +84,7 @@
     "@deepseek-ai/dsh-client-locale": "0.1.1-rc.2",
     "@deepseek-ai/dsh-client-ui-conversation": "0.1.1-rc.2",
     "@deepseek-ai/dsh-client-ui-layout": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.1.1-rc.2",
     "@deepseek-ai/dsh-home-paths": "0.1.1-rc.2",
     "@deepseek-ai/dsh-host-webserver": "0.1.1-rc.2",
     "@deepseek-ai/dsh-invariants": "0.1.1-rc.2",

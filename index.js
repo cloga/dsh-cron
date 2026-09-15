@@ -1015,6 +1015,29 @@ export function apply(ctx, config) {
       .map((task) => taskView(task, now, startedAt))
   }
 
+  /** Privacy-minimal global navigation index. This reads only live task state;
+   * it never consults Sessions/history or populates the mutable cron cache. */
+  function listTaskOwners() {
+    const now = Date.now()
+    const owners = new Map()
+    for (const task of tasks.values()) {
+      if (typeof task.sessionId !== 'string' || task.sessionId.trim() === '') continue
+      let owner = owners.get(task.sessionId)
+      if (!owner) {
+        owner = { sessionId: task.sessionId, taskCount: 0, enabledCount: 0, nextRunAt: null }
+        owners.set(task.sessionId, owner)
+      }
+      owner.taskCount++
+      if (!isEnabled(task)) continue
+      owner.enabledCount++
+      const next = nextRunAt(task, now, startedAt)
+      if (next != null && Number.isFinite(next) && (owner.nextRunAt == null || next < owner.nextRunAt)) owner.nextRunAt = next
+    }
+    return [...owners.values()]
+      .sort((a, b) => a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0)
+      .map(owner => ({ ...owner, nextRunAt: owner.nextRunAt == null ? null : new Date(owner.nextRunAt).toISOString() }))
+  }
+
   function addDynamicTask(raw, sessionId) {
     const owner = requireSessionId(sessionId, 'cron add')
     const input = { ...raw }
@@ -1524,6 +1547,12 @@ export function apply(ctx, config) {
       return sessionId
     }
     const api = {
+      owners: (payload) => {
+        if (payload == null || Array.isArray(payload) || typeof payload !== 'object' || Object.keys(payload).length !== 0) {
+          throw new Error('cron owners request accepts no payload')
+        }
+        return listTaskOwners()
+      },
       list: async (payload, signal) => ({ tasks: listTasks(await httpReadOwner(payload, signal)) }),
       add: (payload) => ({ task: addDynamicTask(payload, httpOwner(payload)) }),
       update: (payload) => ({ task: updateDynamicTask(payload?.id, payload ?? {}, httpOwner(payload)) }),
