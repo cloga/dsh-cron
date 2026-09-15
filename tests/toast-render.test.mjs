@@ -59,6 +59,10 @@ const ctx = {
       assert.deepEqual(names, ['sidebarRightTabs', 'sidebarRight'])
       return
     }
+    if (names[0] === 'uiWorkspace') {
+      assert.deepEqual(names, ['uiWorkspace', 'sessions'])
+      return
+    }
     assert.deepEqual(names, ['betterSidebar'])
     optionalCallback = callback
   },

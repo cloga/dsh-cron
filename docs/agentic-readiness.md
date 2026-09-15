@@ -10,6 +10,7 @@ Session-bound model Tools ─┐
 Session-bound /cron/api ───┘                 │
                                             └─ run lifecycle correlation
 src/client/index.tsx ─ shared Session-aware UI/notification state
+    ├─ global-hub.tsx ─ optional root owner index + public Workspace navigation
     ├─ native-sidebar.ts ─ optional official registry + keyed body Slot adapter
     ├─ header action selects the current owner's native tab
     ├─ sidebar.ts ─ retained optional Better Sidebar public adapter
@@ -23,6 +24,8 @@ The official native adapter is preferred when its registry, controller and keyed
 
 Host mutations must carry a live root Session owner. A cold owner is resumed only from its own durable state, never from a fallback Session; a failed read/close/resume remains retryable. Client polling must reject stale-owner results and unwind listeners/timers on disposal. These boundaries matter more than cosmetic test snapshots.
 
+Version 0.7.0 adds an optional human-only global owner index without changing Core blank-Session semantics. The Host `owners` read groups current tasks in memory, omits legacy unbound records without rewriting them, and returns only the owner Session id, task/enabled counts and earliest next-run time; it never reads Session events/history, wakes an Agent, returns task content or mutates scheduler state. The Client enriches those rows from the already-available public Session-list snapshot, then navigates with `uiWorkspace.openSession`. Paired root `sidebar.panellist`/`main` registrations belong to one optional service/Slot lifetime; missing capabilities leave the existing current-owner panels and scheduler untouched. Tests must prove privacy-minimal output, no task/cache writes, exact blank-owner navigation, cancellation/stale-response behavior and complete paired disposal.
+
 Version 0.6.0 adds the direct-human `/cron-transfer` ownership mutation. It is a command-registry surface only: no model tool or HTTP route. The batch fences all task IDs before awaiting, rejects overlap, verifies modern targets through stable `stat/open/read/close/stat` snapshots (legacy public `inspect` only on old seams), applies the latest `agent-preset/selected` projection, and takes final parallel reads. After all awaits it synchronously compares any live target's public `session.header` and `session.snapshotEvents()` snapshot (falling back to legacy `session.events` only when the method is absent), rechecks every task invariant, mutates owners and performs one strict atomic save. That final freshness boundary covers one Host process; concurrent cross-process Session/Cron writers are unsupported and require external serialization. History and recorded presets remain untouched.
 
 The source retry hardening uses one in-flight resume and a 30s exponential failure backoff per cold owner, capped at 300s and checked by the ordinary scheduler tick. Live roots bypass/reset backoff. At most four cold owners are inspected/resumed concurrently; others remain due for a later tick. Per-task in-flight dispatch prevents a slow owner from holding other owners' ticks; successful delivery stamps and overdue catch-up rules are unchanged. Removing, disabling or editing a task invalidates its pending delivery. Disposal cancels supported persistence operations, prevents late followups and disposes late-created resume handles. Core resume itself has no assumed cancellation API: a non-settling resume stays single-flight, without spawning replacement agents. Four indefinitely hung cold operations exhaust cold-start capacity, but do not block live-owner tasks; there is no unsafe forced Core cancellation.
@@ -31,7 +34,7 @@ Metadata-only HTTP reads prefer public `stat(id, { signal })`, falling back to `
 
 `src/client/read-poll.ts` bounds each panel/watcher read lifecycle to one refresh and a 30s deadline, including response-body consumption. `tests/client-polling.test.mjs` runs source-backed React regressions in the standard test gate: 12s slow success, hanging reads/bodies, repeated Retry, hide/reattach/owner changes, watcher cancellation, mutation non-replay and post-mutation freshness. These fake-network tests do not establish the cause of every real browser `Failed to fetch`; the observed incident was repaired by fixing the incompatible preset field.
 
-Version 0.6.0 is a pre-1.0 additive minor release over 0.5.2: it adds only the guarded human-command owner transfer while retaining existing scheduling, tool/HTTP ownership, history, Client behavior and exact Core support. Versioned changelog/install examples and a committed PR candidate are required for delivery. Recheck the base version before merging; do not report the committed-HEAD release gate as verification of an uncommitted worktree, or a release as proof of live installation.
+Version 0.7.0 is a pre-1.0 additive minor release over 0.6.0: it adds only the optional human owner-navigation hub and privacy-minimal read while retaining existing scheduling, task-management ownership, history, transfer semantics and exact Core support. Versioned changelog/install examples and a committed PR candidate are required for delivery. Recheck the base version before merging; do not report the committed-HEAD release gate as verification of an uncommitted worktree, or a release as proof of live installation.
 
 ## Fast paths for a new agent
 
@@ -39,7 +42,7 @@ Version 0.6.0 is a pre-1.0 additive minor release over 0.5.2: it adds only the g
 | --- | --- | --- |
 | Schedule / tools / HTTP / restart | `index.js`, `tests/host.test.mjs` | Host suite including owner rejection and restart/no-refire cases |
 | Core compatibility | `tests/core-compat.test.mjs`, peer ranges in `package.json` | Exact source identity and both persistence API seams; do not widen peer ranges speculatively |
-| UI / notification | `src/client/index.tsx`, `tests/toast-render.test.mjs` | Real React/portal lifecycle tests plus browser focus, modal, owner and stale-response tests |
+| UI / notification | `src/client/index.tsx`, `src/client/global-hub.tsx`, `tests/toast-render.test.mjs`, `tests/client-polling.test.mjs` | Real React/portal lifecycle tests plus global Slot pairing, exact blank-owner navigation, browser focus, owner and stale-response tests |
 | Native Sidebar | `src/client/native-sidebar.ts`, `tests/native-sidebar*.test.mjs`, `tests/official-sidebar-*.test.mjs` | Two-stage public registration, current-owner open, slot/service lifetime, hidden BODY unmount vs record abort, multi-pane visibility, exact upstream controller/store/planners and synthetic-container browser behavior |
 | Legacy Sidebar | `src/client/sidebar.ts`, `tests/sidebar-contract.test.mjs` | Retained version/capability/fallback/disabled/disposal; scopes, dedupe, floats; optional installed-source contract test |
 | Build / packaging | `tsdown.config.ts`, `tests/package.test.mjs` | Fresh bundle, one ModuleLoader wrapper, packed entrypoints, no install scripts |
