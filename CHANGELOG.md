@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Add a plugin-owned global **Scheduled Sessions** navigation hub through the official `sidebar.panellist` and keyed `main` Slots (#43). It lists every current dsh-cron owner once, including deliberately prepared blank Sessions that Core Workspace navigation does not yet show.
+- Add one same-origin read-only `owners` HTTP method that returns only `sessionId`, task/enabled counts and the earliest next-run time. It skips legacy unbound records without deleting or rewriting them, reads no Session events or history, wakes no Agent, exposes no task id/prompt/rule/excerpt, and does not mutate task records, run stamps, overrides or Cron's next-slot cache.
+- Resolve owner titles, blank/running state and Agent preset only from the Client's existing public Session-list snapshot. Row activation calls public `uiWorkspace.openSession(sessionId)` and never fires a task, prompts a model, creates a turn or replaces the existing per-Session task/history panels.
+- Keep the hub optional: missing `uiWorkspace`, `sessions`, `sidebar.panellist` or `main` capability contributes no global entry while all existing scheduler, model-tool, current-owner HTTP, native/Better Sidebar and standalone fallback behavior remains active.
+- Bound the global read with single-flight polling, deadlines, visibility/unmount cancellation and stale-result guards. Add explicit loading, empty, retryable error and responsive accessible list states, plus synthetic Host/React regressions over five owners including blank `cordis` Sessions.
+- This pre-1.0 minor release adds a human navigation index, not a cross-owner task management API or a DSH Core patch. Existing task ownership, prompts, schedules, history, transfer semantics and supported Core ranges are unchanged.
+
 ## 0.6.0
 
 - Add the direct human `/cron-transfer <JSON>` command for atomic hot transfer of up to 32 dynamic task owners (#41). The command is optional when the Host command registry is absent and is deliberately not exposed as a model tool or HTTP endpoint.

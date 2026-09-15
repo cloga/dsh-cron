@@ -43,7 +43,66 @@ if (!registered.includes('shell.overlay#cron-drawer@order100')) throw new Error(
 if (!ex.inject.includes('slots')) throw new Error('slots service injection missing')
 if (!ex.inject.includes('locale')) throw new Error('locale service injection missing')
 if (!manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-layout')) throw new Error('current layout client module missing')
+if (!manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-workspace')) throw new Error('optional workspace navigation client module missing')
 if (manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-runtime')) throw new Error('removed legacy client runtime still referenced')
+
+const hubRegistrations = [], hubReleases = []
+let hubActivation
+const hubCtx = {
+  effect: () => {},
+  locale: { register: () => () => {}, bind: () => key => key },
+  inject: (names, callback) => {
+    if (names.join(',') === 'uiWorkspace,sessions') hubActivation = callback
+  },
+  slots: { inject: () => {}, register: () => () => {} },
+}
+ex.apply(hubCtx)
+if (typeof hubActivation !== 'function') throw new Error('global hub optional service activation missing')
+hubActivation({ get: () => undefined, effect: fn => fn(), slots: hubCtx.slots })
+if (hubRegistrations.length) throw new Error('hub must contribute nothing without capabilities')
+const services = { uiWorkspace: { openSession() {} }, sessions: {} }
+let releaseHub
+hubActivation({
+  get: name => services[name],
+  effect: fn => { releaseHub = fn(); return releaseHub },
+  slots: {
+    inject: (_name, callback) => callback(),
+    register: (spec, component) => {
+      if (hubRegistrations.some(entry => entry.spec.name === spec.name && (entry.spec.id ?? entry.spec.key) === (spec.id ?? spec.key))) throw new Error('hub registration collision')
+      const entry = { spec, component, released: false }
+      hubRegistrations.push(entry)
+      return () => { if (!entry.released) { entry.released = true; hubReleases.push(spec.name) } }
+    },
+  },
+})
+const hubIcon = hubRegistrations.find(entry => entry.spec.name === 'sidebar.panellist')
+const hubMain = hubRegistrations.find(entry => entry.spec.name === 'main')
+if (!hubIcon || hubIcon.spec.id !== ex.SCHEDULED_SESSIONS_ID || hubIcon.spec.label() !== 'hub.title') throw new Error('global icon registration mismatch')
+if (!hubMain || hubMain.spec.key !== ex.SCHEDULED_SESSIONS_ID) throw new Error('global main registration mismatch')
+releaseHub(); releaseHub()
+if (hubReleases.sort().join(',') !== 'main,sidebar.panellist') throw new Error('paired hub registrations did not clean up exactly once')
+let rollbackIcon = 0
+const previousWarn = console.warn
+const hubWarnings = []
+console.warn = (...args) => hubWarnings.push(args)
+try {
+  hubActivation({
+    get: name => services[name],
+    effect: fn => fn(),
+    slots: {
+      inject: (_name, callback) => callback(),
+      register: (spec) => {
+        if (spec.name === 'main') throw new Error('synthetic occupied main key')
+        return () => { rollbackIcon++ }
+      },
+    },
+  })
+} finally {
+  console.warn = previousWarn
+}
+if (rollbackIcon !== 1 || hubWarnings.length !== 1) throw new Error('failed paired registration did not warn and roll back the icon exactly once')
+if (ex.ownerLabel('blank-id', { blank: true, displayTitle: '  ' }, 'New session') !== 'New session') throw new Error('blank title fallback mismatch')
+if (ex.ownerLabel('unknown-id', undefined, 'New session') !== 'unknown-id') throw new Error('unknown session fallback mismatch')
 for (const token of ['--dsw-alias-bg-layer-1', '--dsw-alias-bg-layer-2', '--dsw-alias-bg-overlay', '--dsw-alias-label-primary', '--dsw-alias-label-secondary', '--dsw-alias-border-l2']) {
   if (!src.includes(token)) throw new Error(`current theme token missing: ${token}`)
 }

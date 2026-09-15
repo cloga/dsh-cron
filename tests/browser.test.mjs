@@ -33,10 +33,11 @@ try {
     #rail { position:absolute; top:14px; right:10px; pointer-events:auto; }
     #sidebar { position:absolute; top:50px; bottom:0; right:0; width:400px; max-width:100vw; pointer-events:auto; }
     #sidebar:empty { display:none; }
+    #hub[hidden] { display:none; }
   </style></head><body>
     <div id="shell"><div id="root"></div><main id="conversation"><h1>Conversation · isolated test fixture</h1>
     <p>The task scheduler remains independent. The optional panel should not cover sidebar controls or leak task ownership.</p>
-    <button id="background-button">Conversation action</button></main></div>
+    <button id="background-button">Conversation action</button></main><div id="hub" hidden></div></div>
     <div id="panel-host"><button id="rail">Sidebar controls</button><div id="sidebar"></div></div>
   </body></html>`)
   await page.addScriptTag({ path: join(dirname(require.resolve('react/package.json')), 'umd/react.development.js') })
@@ -59,10 +60,18 @@ try {
     const slots = new Map()
     const disposers = []
     let optional
+    let hubOptional
     let owner = 'demo-session-00000000-1111-2222-3333-444444444444'
     let recordVersion = 1
+    const ownerRows = ['data', 'image', 'four-hour', 'focus-refresh', 'focus-publish'].map((sessionId, index) => ({
+      sessionId, taskCount: 1, enabledCount: 1, nextRunAt: `2026-09-${16 + index}T0${index}:00:00Z`,
+    }))
     window.fetch = async (url, options) => {
       const payload = JSON.parse(options.body)
+      if (String(url).endsWith('/owners')) {
+        if (Object.keys(payload).length !== 0) throw new Error('Owner index leaked a request identity')
+        return { json: async () => ({ ok: true, result: ownerRows }) }
+      }
       if (payload.sessionId !== owner) throw new Error('Unexpected owner')
       const tasks = [0, 1, 2].map(index => ({ id: 'daily-report-' + index, sessionId: owner, prompt: 'Summarize the latest project progress and verification results.', enabled: true, origin: 'dynamic', schedule: { daily: '09:00', timeZone: 'Asia/Shanghai' }, nextRunAt: '2026-09-06T01:00:00Z' }))
       const records = [{ id: 'run-' + recordVersion, taskId: tasks[0].id, sessionId: owner, status: 'completed', firedAt: '2026-09-05T01:00:00Z', scheduledFor: '2026-09-05T01:00:00Z', startedAt: 0, completedAt: 42000, excerpt: 'Task finished. All three reports were reused; no duplicate publication.' }]
@@ -77,16 +86,37 @@ try {
           if (names.join(',') !== 'sidebarRightTabs,sidebarRight') throw new Error('Unexpected native injection')
           return
         }
+        if (names[0] === 'uiWorkspace') {
+          if (names.join(',') !== 'uiWorkspace,sessions') throw new Error('Unexpected hub injection')
+          hubOptional = callback
+          return
+        }
         if (names.join(',') !== 'betterSidebar') throw new Error('Unexpected legacy injection')
         optional = callback
       },
       locale: { register: (_ns, value) => { dictionaries = value; return () => {} }, bind: () => t },
-      slots: { inject: (_name, fn) => fn(), register: (spec, component) => { slots.set(spec.id, component); return () => {} } },
+      slots: { inject: (_name, fn) => fn(), register: (spec, component) => { slots.set(spec.key ?? spec.id, component); return () => {} } },
     }
     plugin.apply(ctx)
     const root = D.createRoot(document.getElementById('root'))
     const sideRoot = D.createRoot(document.getElementById('sidebar'))
-    const useSessions = selector => selector({ current: owner, byId: { [owner]: { displayTitle: 'Demo scheduled work', blank: false } } })
+    const hubRoot = D.createRoot(document.getElementById('hub'))
+    const openedOwners = []
+    const ownerSessions = {
+      data: { displayTitle: 'Data publish · Creator', blank: false, projectionValues: { agentPreset: 'cordis' } },
+      image: { displayTitle: 'Image publish · Creator', blank: false, projectionValues: { agentPreset: 'cordis' } },
+      'four-hour': { displayTitle: 'Four-hour video · Creator', blank: false, projectionValues: { agentPreset: 'cordis' } },
+      'focus-refresh': { displayTitle: 'Focus refresh · Creator', blank: true, projectionValues: { agentPreset: 'cordis' } },
+      'focus-publish': { displayTitle: 'Focus publish · Creator', blank: true, projectionValues: { agentPreset: 'cordis' } },
+    }
+    const useSessions = selector => selector({ current: owner, byId: {
+      [owner]: { displayTitle: 'Demo scheduled work', blank: false }, ...ownerSessions,
+    } })
+    hubOptional({
+      get: name => name === 'uiWorkspace' ? { openSession: id => openedOwners.push(id) } : name === 'sessions' ? {} : undefined,
+      effect: ctx.effect,
+      slots: ctx.slots,
+    })
     const render = () => root.render(R.createElement(R.Fragment, null,
       R.createElement(slots.get('cron-trigger'), { t, sessionId: owner, useSessions }),
       R.createElement(slots.get('cron-drawer'), { t, useSessions })))
@@ -94,6 +124,15 @@ try {
     let bridgeDispose
     let opens = 0
     window.fixture = {
+      showHub() {
+        document.getElementById('hub').hidden = false
+        hubRoot.render(R.createElement(slots.get(plugin.SCHEDULED_SESSIONS_ID), { t, useSessions }))
+      },
+      hideHub() {
+        hubRoot.render(null)
+        document.getElementById('hub').hidden = true
+      },
+      openedOwners: () => [...openedOwners],
       attach() {
         const service = {
           version: '0.18.0', features: ['targetedOpen', 'floatWindows'],
@@ -120,10 +159,24 @@ try {
         language = value; render()
         if (descriptor) sideRoot.render(R.createElement(descriptor.component, { scope: { sessionId: owner }, visible: !document.getElementById('sidebar').hidden }))
       },
-      cleanup() { bridgeDispose?.(); root.unmount(); sideRoot.unmount(); disposers.reverse().forEach(dispose => dispose()) },
+      cleanup() { bridgeDispose?.(); root.unmount(); sideRoot.unmount(); hubRoot.unmount(); disposers.reverse().forEach(dispose => dispose()) },
     }
     render()
   })
+  await page.evaluate(() => window.fixture.showHub())
+  const hub = page.locator('.dsh-cron-hub')
+  await hub.waitFor({ state: 'visible' })
+  await hub.locator('.dsh-cron-hubRow').first().waitFor({ state: 'visible' })
+  assert.equal(await hub.locator('.dsh-cron-hubRow').count(), 5, 'global hub renders every current owner once')
+  assert.equal(await hub.getByText('cordis', { exact: true }).count(), 5, 'preset comes from the public Session-list snapshot')
+  await hub.getByRole('button', { name: /Focus refresh · Creator/ }).click()
+  assert.deepEqual(await page.evaluate(() => window.fixture.openedOwners()), ['focus-refresh'], 'blank owner opens through public Workspace navigation')
+  assert.equal(await page.locator('dialog').count(), 0, 'global hub navigation does not open a task-management modal')
+  await page.screenshot({ path: join(artifacts, 'owner-hub-light.png') })
+  await page.evaluate(() => window.fixture.hideHub())
+  await hub.waitFor({ state: 'hidden' })
+  results.push('Global owner hub: five owners, blank cordis navigation, no task-management replacement')
+
   const trigger = page.getByRole('button', { name: 'Scheduled tasks', exact: true })
   const dialog = page.locator('dialog')
   const assertStableClock = async expanded => {

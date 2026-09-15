@@ -2,7 +2,7 @@
 
 **让 DSH 按时回到创建任务的会话，继续替你工作。**
 
-用自然语言创建定时任务，在 **DSH 官方 Sidebar 的当前会话标签**中管理任务和执行记录，边聊天边查看进展。原生能力不可用时保留兼容的 Better Sidebar / 独立面板回退。到点使用原会话的模型配置执行，结果仍回到原会话；不新增跨会话任务总览。
+用自然语言创建定时任务，在 **DSH 官方 Sidebar 的当前会话标签**中管理任务和执行记录，边聊天边查看进展。支持公开能力的新 Core 还会提供全局「定时会话」导航，只显示 owner 级计数和最早下次运行时间，点击后回到对应对话；能力不可用时保留旧版兼容行为。到点仍使用原会话的模型配置执行，结果仍回到原会话。
 
 [![CI](https://github.com/cloga/dsh-cron/actions/workflows/ci.yml/badge.svg)](https://github.com/cloga/dsh-cron/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cloga/dsh-cron)](https://github.com/cloga/dsh-cron/releases/latest)
@@ -11,7 +11,7 @@
 
 [快速安装](#安装与升级) · [使用方式](#使用方式) · [界面预览](#界面预览) · [常见问题](#常见问题) · [开发与发布](#开发与发布)
 
-**English:** Session-bound scheduled prompts for DeepSeek Harness. Create tasks in chat, manage the current session's tasks/history in the official native Sidebar, and receive results in the owning conversation. The header clock selects the same native destination without blocking chat; older or unavailable native surfaces retain the optional Better Sidebar / standalone fallback. No cross-session task center or scheduling-policy change. Ships prebuilt client code; no install scripts. Important changes are version-gated and automatically released after main-branch CI succeeds.
+**English:** Session-bound scheduled prompts for DeepSeek Harness. Create tasks in chat, manage the current session's tasks/history in the official native Sidebar, and receive results in the owning conversation. On capable Core versions an optional Scheduled Sessions hub lists only owner-level counts/next-run time and navigates through the public Workspace service; older surfaces keep the existing current-session fallbacks. The hub is an index, not a cross-owner task center, and does not change scheduling policy. Ships prebuilt client code; no install scripts.
 
 ## 核心能力
 
@@ -19,6 +19,7 @@
 | --- | --- |
 | 自然语言调度 | 一次性、固定间隔、每天、标准五段 cron；`daily` / `cron` 支持 IANA 时区 |
 | Sidebar 内管理 | 查看任务、编辑、立即执行、暂停/恢复、删除，并切换到执行记录 |
+| 全局 owner 导航 | 可选「定时会话」索引列出当前 owner、任务/启用数和最早下次运行，点击进入公开 Conversation；不显示 prompt、任务 ID 或历史 |
 | 原生优先与兼容回退 | 时钟选中当前会话已有的原生 Cron 标签，复用官方面板控件；缺少原生能力时再选择兼容的 Better Sidebar 或独立 modal，不重新启用停用插件 |
 | 严格会话归属 | 工具和 HTTP 操作按 root Session 隔离；原会话暂不可用时保留待执行任务，不投递给其他会话 |
 | 人工热转移 | 顶层用户可用 `/cron-transfer <JSON>` 将最多 32 个空闲动态任务原子转给已验证的空白 root Session；不经过模型工具或 HTTP |
@@ -27,6 +28,12 @@
 | 可验证交付 | 固定版本安装、不可变 GitHub Release、SHA-256 校验和受保护的自动发布流程 |
 
 ## 界面预览
+
+### v0.7.0：全局「定时会话」导航
+
+支持 `sidebar.panellist`、`main`、`sessions` 与 `uiWorkspace.openSession` 公开能力时，Cron 会以自己的新 ID 注册一个全局时钟入口和配对主面板。面板每个 owner 只显示会话标题（未知时回退 Session ID）、空白/运行状态、可安全取得的 Agent preset 投影、任务/启用计数和最早下次运行；点击整行通过公开 Workspace 导航进入原 Conversation，不创建 turn 或 follow-up。尚未进入公开 Session 列表的 owner 暂时禁用导航，后续轮询取得列表行后自动恢复。
+
+这是中央 scheduler **索引**，不是 Workspace 行补丁或跨 owner 任务中心。全局 `owners` 读取不返回任务 ID、prompt、规则、历史、摘要、标题、preset 或 live 对象；标题和 preset 仅来自页面已有的公开 `useSessions` 快照。缺少任一公开服务/Slot 时插件不贡献该入口，旧 Core 的当前会话面板、通知和调度保持不变。轮询单飞、有截止和取消/过期响应保护；错误可手动重试。
 
 ### v0.5.0：当前会话的官方 Sidebar 标签
 
@@ -66,15 +73,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.6.0
+dsh plugin --profile web add github:cloga/dsh-cron#v0.7.0
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.6.0 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.6.0) 下载 `dsh-cron-0.6.0.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.7.0 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.7.0) 下载 `dsh-cron-0.7.0.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.6.0.tgz
+dsh plugin --profile web add ./dsh-cron-0.7.0.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -86,7 +93,7 @@ dsh plugin --profile web add ./dsh-cron-0.6.0.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.6.0'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.0'
 ```
 
 </details>
@@ -99,7 +106,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.6.0'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.6.0`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.7.0`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 

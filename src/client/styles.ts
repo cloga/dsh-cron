@@ -77,7 +77,7 @@ export const css = `
 /* Local semantic tokens: current public DSH theme variables first, then
    color-scheme-aware system colors when a host omits one. All plugin roots are
    included because the trigger, sidebar panel, dialog and toasts have separate roots. */
-:where(.dsh-cron-trigger, .dsh-cron-drawer, .dsh-cron-sidebarPanel, .dsh-cron-toastStack) {
+:where(.dsh-cron-trigger, .dsh-cron-drawer, .dsh-cron-sidebarPanel, .dsh-cron-toastStack, .dsh-cron-hub) {
   --dsh-cron-bg-surface: var(--dsw-alias-bg-layer-1, Canvas);
   --dsh-cron-bg-control: var(--dsw-alias-bg-layer-2, color-mix(in srgb, CanvasText 8%, Canvas));
   --dsh-cron-bg-overlay: var(--dsw-alias-bg-overlay, color-mix(in srgb, CanvasText 14%, Canvas));
@@ -289,5 +289,34 @@ export const css = `
 .dsh-cron-body, .dsh-cron-settingsBody { scrollbar-width: thin; scrollbar-color: var(--dsh-cron-border) transparent; }
 .dsh-cron-time, .dsh-cron-meta { font-variant-numeric: tabular-nums; }
 .dsh-cron-action { text-underline-offset: 3px; }
+/* Global owner index: a navigation list, not a second task-management surface. */
+.dsh-cron-hub {
+  box-sizing: border-box; width: 100%; height: 100%; min-width: 0; overflow: auto;
+  padding: clamp(16px, 3vw, 32px); background: var(--dsh-cron-bg-surface); color: var(--dsh-cron-label-primary);
+  scrollbar-width: thin; scrollbar-color: var(--dsh-cron-border) transparent;
+}
+.dsh-cron-hubHead { max-width: 68ch; margin: 0 0 20px; }
+.dsh-cron-hubHead h1 { margin: 0 0 6px; font-size: clamp(18px, 2vw, 24px); line-height: 1.25; font-weight: 650; }
+.dsh-cron-hubHead p { margin: 0; color: var(--dsh-cron-label-secondary); font-size: 13px; line-height: 1.6; }
+.dsh-cron-hubList { max-width: 760px; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.dsh-cron-hubRow {
+  box-sizing: border-box; width: 100%; min-height: 58px; display: grid;
+  grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; align-items: center;
+  border: 0; border-bottom: 1px solid var(--dsh-cron-border); border-radius: 7px;
+  padding: 10px 12px; text-align: left; cursor: pointer; background: transparent; color: var(--dsh-cron-label-primary);
+}
+.dsh-cron-hubRow:not(:disabled):hover { background: var(--dsh-cron-bg-interactive); }
+.dsh-cron-hubRow:disabled { cursor: not-allowed; opacity: .64; }
+.dsh-cron-hubRow:focus-visible { outline: 2px solid var(--dsh-cron-label-secondary); outline-offset: 2px; }
+.dsh-cron-hubTitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.dsh-cron-hubCounts, .dsh-cron-hubNext { color: var(--dsh-cron-label-secondary); font-size: 11px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+.dsh-cron-hubNext { text-align: right; }
+.dsh-cron-hubBadges { justify-self: end; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+@media (max-width: 560px) {
+  .dsh-cron-hub { padding: 14px 10px; }
+  .dsh-cron-hubRow { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .dsh-cron-hubBadges { justify-self: start; justify-content: flex-start; }
+  .dsh-cron-hubNext { text-align: left; }
+}
 @media (prefers-reduced-motion: reduce) { .dsh-cron-toast { animation: none; } }
 `
