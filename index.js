@@ -16,9 +16,9 @@
 // injection: headless profiles keep full scheduling without the API).
 
 import { execFile } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, posix, win32 } from 'node:path'
 
 import Schema from '@deepseek-ai/schemastery'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -40,6 +40,8 @@ const EXCERPT_LENGTH = 300
 const COLD_RETRY_MIN_MS = 30_000
 const COLD_RETRY_MAX_MS = 300_000
 const MAX_COLD_RESUMES = 4
+const MAX_TRANSFER_TASKS = 32
+const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 
 const TaskSchema = Schema.object({
   id: Schema.string().description('Task id, unique across config and dynamic tasks.'),
@@ -470,7 +472,7 @@ export function apply(ctx, config) {
 
   // --- task storage --------------------------------------------------------
 
-  function save() {
+  function storagePayload() {
     // Explicit field list: internal caches (cronParsed Sets, cronNext) never
     // reach the file and are rebuilt on load.
     const dynamic = [...tasks.values()]
@@ -482,15 +484,24 @@ export function apply(ctx, config) {
       if (t.lastRunAt || t.firedAt) runs[t.id] = { lastRunAt: t.lastRunAt ?? null, firedAt: t.firedAt ?? null }
       if (t.enabledOverride != null) overrides[t.id] = t.enabledOverride
     }
-    const payload = JSON.stringify({ version: STORAGE_VERSION, tasks: dynamic, runs, overrides }, null, 2)
+    return JSON.stringify({ version: STORAGE_VERSION, tasks: dynamic, runs, overrides }, null, 2)
+  }
+
+  function persistTasks(strict) {
+    const tmp = `${storagePath}.tmp`
     try {
       mkdirSync(dirname(storagePath), { recursive: true })
-      const tmp = `${storagePath}.tmp`
-      writeFileSync(tmp, payload)
+      writeFileSync(tmp, storagePayload())
       renameSync(tmp, storagePath)
     } catch (error) {
+      try { rmSync(tmp, { force: true }) } catch { /* preserve the original failure */ }
+      if (strict) throw error
       logger.warn(`cron: failed to write ${storagePath}: ${error?.message ?? error}`)
     }
+  }
+
+  function save() {
+    persistTasks(false)
   }
 
   function load() {
@@ -632,7 +643,7 @@ export function apply(ctx, config) {
    * Runs awaiting their execution outcome, keyed by injected message id.
    * A run closes when a turn ends on the same session after its message
    * entered the surface.
-   * @type {Map<string, { recordId: string, session: object, seen: boolean }>}
+   * @type {Map<string, { recordId: string, taskId: string, session: object, seen: boolean }>}
    */
   const pendingRuns = new Map()
 
@@ -714,7 +725,7 @@ export function apply(ctx, config) {
     return header
   }
 
-  async function readOwnerSnapshot(sessionId, signal) {
+  async function readOwnerSnapshotDetail(sessionId, signal) {
     signal.throwIfAborted()
     const persistence = ctx.sessionPersistence
     let snapshot
@@ -731,7 +742,14 @@ export function apply(ctx, config) {
       snapshot = candidates[0]
     }
     signal.throwIfAborted()
-    return rootSnapshotHeader(snapshot, sessionId)
+    return {
+      header: rootSnapshotHeader(snapshot, sessionId),
+      revision: snapshot && Object.hasOwn(snapshot, 'revision') ? snapshot.revision : undefined,
+    }
+  }
+
+  async function readOwnerSnapshot(sessionId, signal) {
+    return (await readOwnerSnapshotDetail(sessionId, signal)).header
   }
 
   /** Last provider/model pair recorded by the target Session. */
@@ -760,44 +778,64 @@ export function apply(ctx, config) {
     return preset
   }
 
-  /** Read one cold Session across legacy inspect and Core 0.1.3/0.1.5 handles. */
-  async function inspectPersistedSession(sessionId) {
+  function assertSamePersistedHeader(observed, current, sessionId) {
+    for (const key of ['id', 'origin', 'delegationDepth', 'cwd', 'agentPreset']) {
+      if (Object.hasOwn(observed ?? {}, key) && observed?.[key] !== current?.[key]) {
+        throw new Error(`persisted Session "${sessionId}" changed during inspection`)
+      }
+    }
+  }
+
+  function normalizePersistedEvents(result) {
+    // Core 0.1.3 returns an array; Core 0.1.5 returns an ownership-tagged slice.
+    const events = Array.isArray(result) ? result : result?.events
+    if (!Array.isArray(events) || (!Array.isArray(result)
+      && result?.eventState !== 'detached' && result?.eventState !== 'shared-frozen')) {
+      throw new TypeError('invalid session persistence read result')
+    }
+    return events
+  }
+
+  /** Read one Session across legacy inspect and Core 0.1.3/0.1.5 handles. */
+  async function inspectPersistedSession(sessionId, signal = schedulerLifetime.signal) {
     const persistence = ctx.sessionPersistence
-    const signal = schedulerLifetime.signal
-    const header = await readOwnerSnapshot(sessionId, signal)
+    const snapshot = await readOwnerSnapshotDetail(sessionId, signal)
+    const header = snapshot.header
     if (!header.cwd) throw new Error('missing session working directory')
     if (typeof persistence.open === 'function') {
       const handle = await persistence.open(header.id, 'read', { signal })
+      let inspected
       try {
         signal.throwIfAborted()
         if (typeof handle?.read !== 'function' || typeof handle?.close !== 'function') {
           throw new TypeError('invalid session persistence read handle')
         }
         const meta = rootSnapshotHeader(handle.header, sessionId)
-        if (!meta.cwd) {
-          throw new Error('invalid or non-root session persistence handle header')
-        }
+        if (!meta.cwd) throw new Error('invalid or non-root session persistence handle header')
+        assertSamePersistedHeader(header, meta, sessionId)
         const result = await handle.read(undefined, undefined, { signal })
         signal.throwIfAborted()
-        // 0.1.3 returns an array; 0.1.5 returns an ownership-tagged slice.
-        // Cron only observes events to select model/preset; it never mutates or
-        // transfers their ownership to Session reconstruction (Core does that).
-        const events = Array.isArray(result) ? result : result?.events
-        if (!Array.isArray(events) || (!Array.isArray(result)
-          && result?.eventState !== 'detached' && result?.eventState !== 'shared-frozen')) {
-          throw new TypeError('invalid session persistence read result')
-        }
-        return { meta, events }
+        // Cron only observes events to select model/preset/blankness; it never
+        // mutates or transfers producer ownership of those event objects.
+        inspected = { meta, events: normalizePersistedEvents(result), revision: snapshot.revision }
       } finally {
         if (typeof handle?.close === 'function') await handle.close()
       }
+      signal.throwIfAborted()
+      const after = await readOwnerSnapshotDetail(sessionId, signal)
+      if (after.revision !== snapshot.revision) {
+        throw new Error(`persisted Session "${sessionId}" changed during inspection`)
+      }
+      assertSamePersistedHeader(header, after.header, sessionId)
+      return inspected
     }
     if (typeof persistence.inspect === 'function') {
-      const inspected = await persistence.inspect(header.id)
+      const inspected = await persistence.inspect(header.id, signal)
       signal.throwIfAborted()
       const meta = rootSnapshotHeader(inspected?.meta, sessionId)
       if (!meta.cwd || !Array.isArray(inspected?.events)) throw new Error('invalid session inspection')
-      return inspected
+      assertSamePersistedHeader(header, meta, sessionId)
+      return { meta, events: inspected.events, revision: snapshot.revision }
     }
     throw new Error('session persistence exposes neither open nor inspect')
   }
@@ -874,11 +912,12 @@ export function apply(ctx, config) {
 
   /** Per-task ownership covers cold resume through durable stamping. */
   const firing = new Set()
+  const transferring = new Set()
   const taskRevisions = new WeakMap()
 
   /** Deliver one task asynchronously; failure leaves its slot overdue. */
   async function fire(task, slot) {
-    if (schedulerLifetime.signal.aborted || firing.has(task.id)) return null
+    if (schedulerLifetime.signal.aborted || firing.has(task.id) || transferring.has(task.id)) return null
     firing.add(task.id)
     const revision = taskRevisions.get(task)
     try {
@@ -910,7 +949,7 @@ export function apply(ctx, config) {
         firedAt: new Date(now).toISOString(),
         status: 'delivered',
       })
-      pendingRuns.set(message.id, { recordId: record.id, session: agent.session, seen: false })
+      pendingRuns.set(message.id, { recordId: record.id, taskId: task.id, session: agent.session, seen: false })
       logger.info(`cron: fired task "${task.id}" (scheduled ${new Date(slot).toISOString()})`)
       return record
     } finally {
@@ -1087,6 +1126,246 @@ export function apply(ctx, config) {
     const cap = Number.isFinite(limit) && limit > 0 ? Math.min(limit, MAX_HISTORY) : 100
     const matching = history.filter((record) => record.sessionId === owner)
     return matching.slice(-cap).reverse()
+  }
+
+  // --- human-authorized hot owner transfer ------------------------------------
+
+  class TransferCommandError extends Error {}
+
+  function transferFailure(message) {
+    throw new TransferCommandError(message)
+  }
+
+  function exactObjectKeys(value, keys) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+    const actual = Object.keys(value).sort()
+    const expected = [...keys].sort()
+    return actual.length === expected.length && actual.every((key, index) => key === expected[index])
+  }
+
+  function parseTransferInput(rawInput) {
+    let input
+    try {
+      input = JSON.parse(rawInput)
+    } catch {
+      transferFailure('cron transfer requires one strict JSON object')
+    }
+    if (!exactObjectKeys(input, ['expectedPreset', 'expectedCwd', 'transfers'])) {
+      transferFailure('cron transfer JSON must contain exactly expectedPreset, expectedCwd, and transfers')
+    }
+    if (typeof input.expectedPreset !== 'string' || input.expectedPreset.trim() === '') {
+      transferFailure('expectedPreset must be a nonblank string')
+    }
+    if (typeof input.expectedCwd !== 'string'
+      || (!posix.isAbsolute(input.expectedCwd) && !win32.isAbsolute(input.expectedCwd))) {
+      transferFailure('expectedCwd must be an absolute path string')
+    }
+    if (!Array.isArray(input.transfers) || input.transfers.length === 0 || input.transfers.length > MAX_TRANSFER_TASKS) {
+      transferFailure(`transfers must contain 1-${MAX_TRANSFER_TASKS} entries`)
+    }
+    const ids = new Set()
+    const fromIds = new Set()
+    const toIds = new Set()
+    for (const transfer of input.transfers) {
+      if (!exactObjectKeys(transfer, ['id', 'from', 'to'])) {
+        transferFailure('each transfer must contain exactly id, from, and to')
+      }
+      if (typeof transfer.id !== 'string' || !TASK_ID.test(transfer.id)) {
+        transferFailure('each transfer id must be a valid task id')
+      }
+      if (typeof transfer.from !== 'string' || !SESSION_ID.test(transfer.from)
+        || typeof transfer.to !== 'string' || !SESSION_ID.test(transfer.to)) {
+        transferFailure('each transfer from/to must be valid Session ids')
+      }
+      if (transfer.from === transfer.to) transferFailure(`task "${transfer.id}" already has the requested owner`)
+      if (ids.has(transfer.id) || fromIds.has(transfer.from) || toIds.has(transfer.to)) {
+        transferFailure('transfer ids, from owners, and to owners must each be unique')
+      }
+      ids.add(transfer.id)
+      fromIds.add(transfer.from)
+      toIds.add(transfer.to)
+    }
+    return input
+  }
+
+  function taskHasActiveRun(taskId) {
+    if (firing.has(taskId)) return true
+    if ([...pendingRuns.values()].some((run) => run.taskId === taskId)) return true
+    return history.some((record) => record.taskId === taskId
+      && (record.status === 'delivered' || record.status === 'running'))
+  }
+
+  function assertTransferTasks(input, captures) {
+    const transferIds = new Set(input.transfers.map((transfer) => transfer.id))
+    const targetIds = new Set(input.transfers.map((transfer) => transfer.to))
+    for (let index = 0; index < input.transfers.length; index += 1) {
+      const transfer = input.transfers[index]
+      const task = tasks.get(transfer.id)
+      if (!task) transferFailure(`no task with id "${transfer.id}"`)
+      if (!captures && transferring.has(transfer.id)) {
+        transferFailure(`task "${transfer.id}" is already transferring`)
+      }
+      if (task.origin !== 'dynamic') transferFailure(`task "${transfer.id}" is not dynamic`)
+      if (task.sessionId !== transfer.from) transferFailure(`task "${transfer.id}" owner does not match from`)
+      if (taskHasActiveRun(transfer.id)) transferFailure(`task "${transfer.id}" has an active run`)
+      const capture = captures?.[index]
+      if (capture && (capture.task !== task || capture.revision !== taskRevisions.get(task)
+        || capture.owner !== task.sessionId)) {
+        transferFailure(`task "${transfer.id}" changed during transfer`)
+      }
+    }
+    for (const task of tasks.values()) {
+      if (targetIds.has(task.sessionId) && !transferIds.has(task.id)) {
+        transferFailure(`target Session "${task.sessionId}" already owns an unrelated task`)
+      }
+    }
+  }
+
+  function validateTransferTarget(inspected, transfer, input) {
+    const meta = inspected?.meta
+    const events = inspected?.events
+    if (!meta || meta.id !== transfer.to || meta.origin !== undefined
+      || (meta.delegationDepth !== undefined && meta.delegationDepth !== 0)) {
+      transferFailure(`target Session "${transfer.to}" is not a root Session`)
+    }
+    if (!Array.isArray(events)) transferFailure(`target Session "${transfer.to}" has invalid persisted events`)
+    if (currentSessionPreset(meta, events) !== input.expectedPreset) {
+      transferFailure(`target Session "${transfer.to}" does not match expectedPreset`)
+    }
+    if (meta.cwd !== input.expectedCwd) {
+      transferFailure(`target Session "${transfer.to}" does not match expectedCwd`)
+    }
+    if (events.some((event) => event?.type === 'turn/start')) {
+      transferFailure(`target Session "${transfer.to}" is not blank`)
+    }
+  }
+
+  async function inspectTransferTargetSession(sessionId, signal) {
+    const persistence = ctx.sessionPersistence
+    if (typeof persistence.open === 'function') return inspectPersistedSession(sessionId, signal)
+    if (typeof persistence.inspect === 'function') {
+      const inspected = await persistence.inspect(sessionId, signal)
+      signal.throwIfAborted()
+      const meta = rootSnapshotHeader(inspected?.meta, sessionId)
+      if (!meta.cwd || !Array.isArray(inspected?.events)) throw new Error('invalid session inspection')
+      return { meta, events: inspected.events, revision: undefined }
+    }
+    throw new Error('session persistence exposes neither open nor inspect')
+  }
+
+  async function revalidateTransferTarget(transfer, input, signal) {
+    // Always take a fresh full snapshot. Modern handles prove each individual
+    // read stable with stat-before/open/read/close/stat-after; legacy inspect
+    // has no revision token, so the second full read is its freshness guard.
+    const current = await inspectTransferTargetSession(transfer.to, signal)
+    signal.throwIfAborted()
+    validateTransferTarget(current, transfer, input)
+    return current
+  }
+
+  function validateLiveTransferTargets(input) {
+    const roots = ctx.agents.roots()
+    for (const transfer of input.transfers) {
+      const matches = roots.filter((agent) => String(agent.session?.header?.id ?? agent.session?.id) === transfer.to)
+      if (matches.length === 0) continue
+      if (matches.length !== 1) transferFailure(`target Session "${transfer.to}" has ambiguous live ownership`)
+      const session = matches[0].session
+      if (!session?.header) transferFailure(`live target Session "${transfer.to}" cannot be verified safely`)
+      let events
+      try {
+        events = typeof session.snapshotEvents === 'function' ? session.snapshotEvents() : session.events
+      } catch {
+        transferFailure(`live target Session "${transfer.to}" cannot be verified safely`)
+      }
+      if (!Array.isArray(events)) transferFailure(`live target Session "${transfer.to}" cannot be verified safely`)
+      validateTransferTarget({ meta: session.header, events }, transfer, input)
+    }
+  }
+
+  async function executeTransferCommand(invocation) {
+    try {
+      if (!invocation?.agent || !ctx.agents.roots().includes(invocation.agent)) {
+        transferFailure('cron transfer requires the exact live top-level root Agent')
+      }
+      if (!Array.isArray(invocation.attachments) || invocation.attachments.length !== 0) {
+        transferFailure('cron transfer does not accept attachments')
+      }
+      invocation.signal?.throwIfAborted()
+      const input = parseTransferInput(invocation.rawInput)
+      assertTransferTasks(input)
+      const captures = input.transfers.map((transfer) => {
+        const task = tasks.get(transfer.id)
+        return { task, revision: taskRevisions.get(task), owner: task.sessionId }
+      })
+      for (const transfer of input.transfers) transferring.add(transfer.id)
+      try {
+        const inspectedTargets = []
+        for (const transfer of input.transfers) {
+          invocation.signal?.throwIfAborted()
+          let inspected
+          try {
+            inspected = await inspectTransferTargetSession(transfer.to, invocation.signal)
+          } catch {
+            if (invocation.signal?.aborted) throw invocation.signal.reason
+            transferFailure(`target Session "${transfer.to}" could not be inspected`)
+          }
+          invocation.signal?.throwIfAborted()
+          validateTransferTarget(inspected, transfer, input)
+          inspectedTargets.push(inspected)
+        }
+        invocation.signal?.throwIfAborted()
+        assertTransferTasks(input, captures)
+        await Promise.all(input.transfers.map(async (transfer, index) => {
+          try {
+            inspectedTargets[index] = await revalidateTransferTarget(transfer, input, invocation.signal)
+          } catch (error) {
+            if (error instanceof TransferCommandError) throw error
+            if (invocation.signal?.aborted) throw invocation.signal.reason
+            transferFailure(`target Session "${transfer.to}" could not be revalidated`)
+          }
+        }))
+        invocation.signal?.throwIfAborted()
+        assertTransferTasks(input, captures)
+        // Final live-root projection is deliberately synchronous. In one Host,
+        // a target that started a turn after persistence inspection is rejected
+        // with no await before owner mutation and strict persistence.
+        validateLiveTransferTargets(input)
+        for (let index = 0; index < input.transfers.length; index += 1) {
+          captures[index].task.sessionId = input.transfers[index].to
+        }
+        try {
+          persistTasks(true)
+        } catch {
+          for (const capture of captures) capture.task.sessionId = capture.owner
+          transferFailure('cron transfer could not persist the task batch')
+        }
+        for (const capture of captures) {
+          taskRevisions.set(capture.task, (capture.revision ?? 0) + 1)
+        }
+        return {
+          kind: 'success',
+          text: JSON.stringify({ transfers: input.transfers.map(({ id, from, to }) => ({ id, from, to })) }),
+        }
+      } finally {
+        for (const transfer of input.transfers) transferring.delete(transfer.id)
+      }
+    } catch (error) {
+      if (error instanceof TransferCommandError) return { kind: 'error', text: error.message }
+      if (invocation?.signal?.aborted) return { kind: 'error', text: 'cron transfer was cancelled' }
+      logger.warn('cron: transfer command failed unexpectedly')
+      return { kind: 'error', text: 'cron transfer failed safely' }
+    }
+  }
+
+  const commands = ctx.get?.('commands')
+  if (commands !== undefined) {
+    ctx.effect(() => commands.register({
+      name: 'cron-transfer',
+      description: 'Atomically transfer a bounded batch of dynamic tasks to verified blank root Sessions.',
+      input: { hint: '<JSON>' },
+      recordInput: false,
+      handler: executeTransferCommand,
+    }))
   }
 
   // --- management tools --------------------------------------------------------

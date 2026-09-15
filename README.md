@@ -21,6 +21,7 @@
 | Sidebar 内管理 | 查看任务、编辑、立即执行、暂停/恢复、删除，并切换到执行记录 |
 | 原生优先与兼容回退 | 时钟选中当前会话已有的原生 Cron 标签，复用官方面板控件；缺少原生能力时再选择兼容的 Better Sidebar 或独立 modal，不重新启用停用插件 |
 | 严格会话归属 | 工具和 HTTP 操作按 root Session 隔离；原会话暂不可用时保留待执行任务，不投递给其他会话 |
+| 人工热转移 | 顶层用户可用 `/cron-transfer <JSON>` 将最多 32 个空闲动态任务原子转给已验证的空白 root Session；不经过模型工具或 HTTP |
 | 执行可追踪 | 记录投递、运行、完成、失败及中断状态，提供耗时与结果摘要 |
 | 多层通知 | 未读徽标、页面 Toast、提示音、浏览器通知，以及受平台支持的 Host 原生通知 |
 | 可验证交付 | 固定版本安装、不可变 GitHub Release、SHA-256 校验和受保护的自动发布流程 |
@@ -65,15 +66,15 @@
 在常驻的 **Web / Desktop Web Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.5.2
+dsh plugin --profile web add github:cloga/dsh-cron#v0.6.0
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.5.2 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.5.2) 下载 `dsh-cron-0.5.2.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.6.0 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.6.0) 下载 `dsh-cron-0.6.0.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.5.2.tgz
+dsh plugin --profile web add ./dsh-cron-0.6.0.tgz
 ```
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
@@ -85,7 +86,7 @@ dsh plugin --profile web add ./dsh-cron-0.5.2.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.2'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.6.0'
 ```
 
 </details>
@@ -98,7 +99,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.5.2'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.5.2`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.6.0`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
 
 ### 3. 在安全时机激活
 
@@ -126,6 +127,30 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 | `cron` | `0 9 * * 1-5` | 分、时、日、月、星期；例为工作日 09:00 |
 
 `daily` / `cron` 的 `timeZone` 使用 IANA 名称，例如 `Asia/Shanghai`。未指定时采用插件 `defaultTimeZone`，**默认是 UTC**，不要把它当成本机时区。默认调度检查间隔为 15 秒，不是硬实时系统。
+
+### 由用户直接热转移任务 owner（v0.6.0）
+
+当一批旧 root Session 需要由预先创建的空白 root Session 接管时，顶层用户可以在聊天输入框直接执行：
+
+```text
+/cron-transfer {"expectedPreset":"trinity-automation","expectedCwd":"C:\\workspace","transfers":[{"id":"old-session-id","from":"old-session-id","to":"new-session-id"}]}
+```
+
+输入必须是只含 `expectedPreset`、`expectedCwd`、`transfers` 的严格 JSON 对象；每个 transfer 只含字符串 `id/from/to`。批次限制为 1–32 项，任务 ID、`from` 与 `to` 分别不得重复，`from != to`。任务 ID 可以与它的旧 Session ID 相同，转移不会改任务 ID。
+
+这是一条 **DSH 人工 slash command**，不是模型工具，也没有 `/cron/api` HTTP 入口。只有命令所在 UI 传入的精确 live 顶层 root Agent 才能授权执行；子代理、附件、定时注入的消息和模型都不能借此调用 command registry。Host 没有可选 `commands` 服务时不注册该命令，原调度行为不变。命令不记录原始 JSON（`recordInput: false`），成功结果只列任务 ID、旧 owner 和新 owner，不回显 prompt。
+
+转移前会验证：
+
+- 每项任务存在、来自动态存储、owner 精确等于 `from`，且没有 firing、`delivered` / `running` 历史或 pending run；配置任务不能热转移。
+- 每个 `to` 都通过当前 Core 的公开持久化 seam 验证为 root Session：现代 Core 使用 `stat → open('read') → read → close → stat` 并要求前后 revision/header 一致，旧 Core 才使用公开的 legacy `inspect`。Session ID、最新 `agent-preset/selected` 投影（没有选择事件时用 header preset）和绝对 `cwd` 必须精确匹配声明；允许 `session/title` 等元数据，但不允许已有 `turn/start`。
+- 目标 ID 互不重复，也不能已经拥有批次之外的任务。
+
+所有任务在异步检查前一起进入 transfer fence；重叠命令不能取得或释放另一个命令的 fence。初检后会并行取得一轮尽量靠近提交的完整目标快照，再次核对任务对象、revision、owner、运行状态、取消信号和目标冲突。最后同步扫描本 Host 的 live roots，用公开的 `session.header` 与 `session.snapshotEvents()` 快照（旧 Core 回退只读 `session.events`）拒绝刚开始 turn 或切换 preset 的目标；此检查与 owner 内存更新、一次严格原子写入之间没有 await。任何校验错误、竞态、取消或持久化失败都会整批回滚，不会部分转移、执行任务或发送 follow-up。
+
+该新鲜度保证限定在**单个 DSH Host 进程**：同一 Host 的 live Session 变化会在最终同步屏障中被拒绝；不支持其他进程同时改写 Session 或 Cron 存储，调用方必须在外部序列化这种跨进程操作。
+
+热转移只改动态任务当前的 `sessionId`；prompt、规则、启用状态、run stamp、override 和历史文件均不改写。旧历史仍保留旧 `sessionId`。不要因此删除旧 Session 或它记录的 preset：Core 重建历史 Session 时仍可能按记录使用 `trinity-automation` 等旧 preset，和当前任务已转给谁无关。
 
 ### 用面板管理和追踪
 

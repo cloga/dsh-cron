@@ -1,6 +1,6 @@
 // Package policy, exact-source declarations, and source-backed cold-read contracts.
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
@@ -219,5 +219,90 @@ async function verifySourceHandleColdResume(read, version) {
       rmSync(directory, { recursive: true, force: true })
     }
   }
-  console.log(`✓ Core ${version} actual JSONL handle class → Cron cold resume; detached/shared-frozen, empty/current/primed slices, model/preset and close-before-resume (fake storage/agents)`)
+
+  // Exercise /cron-transfer through the exact tagged modern handle class too.
+  // The persistence backend remains synthetic; this certifies API shape,
+  // ownership-state normalization, stable revision reads and handle cleanup.
+  {
+    const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-source-transfer-'))
+    const taskFile = join(directory, 'tasks.json')
+    const targetMeta = Object.freeze({ id: 'source-target', cwd: directory, agentPreset: 'standard', delegationDepth: 0 })
+    const targetEvents = Object.freeze([{ type: 'session/title', data: Object.freeze({ title: 'blank target' }) }])
+    const source = { eventState: 'shared-frozen', events: targetEvents }
+    let releases = 0
+    let opens = 0
+    let stats = 0
+    const storage = {
+      resolveCurrentLog: async () => 'fixture-log',
+      readStoredLog: async () => source,
+      hasPendingSession: () => false,
+      releaseHandle: () => { releases++ },
+    }
+    const makeHandle = () => new JsonlSessionHandle(storage, targetMeta.id, targetMeta, 'read', {
+      cursor: 0, materialized: true, inheritedEventCount: 0,
+    })
+    const commands = new Map()
+    const disposers = []
+    const commandAgent = { session: { id: 'command-root' }, followup() {} }
+    writeFileSync(taskFile, JSON.stringify({
+      version: 1,
+      tasks: [{ id: 'source-transfer', prompt: 'fixture only', every: 3600, sessionId: 'source-owner', enabled: true }],
+      runs: {},
+      overrides: {},
+    }, null, 2))
+    try {
+      apply({
+        logger: { info() {}, warn: message => { throw new Error(message) } },
+        agents: { roots: () => [commandAgent], resume: async () => { throw new Error('transfer must not resume') } },
+        sessionPersistence: {
+          stat: async (id, options) => {
+            assert.equal(id, targetMeta.id)
+            assert.ok(options?.signal instanceof AbortSignal)
+            stats++
+            return { header: targetMeta, revision: 'source-stable' }
+          },
+          open: async (id, access) => {
+            assert.equal(id, targetMeta.id)
+            assert.equal(access, 'read')
+            opens++
+            return makeHandle()
+          },
+        },
+        agentPresets: { mount: async () => { throw new Error('transfer must not mount') } },
+        agentDefaultModel: { currentSelection: () => ({ provider: 'unused', model: 'unused' }) },
+        tools: { register() {} },
+        get: name => name === 'commands' ? {
+          register: definition => { commands.set(definition.name, definition); return () => commands.delete(definition.name) },
+        } : undefined,
+        on() {}, inject() {}, effect: effect => disposers.push(effect()),
+      }, Config({
+        storagePath: taskFile,
+        historyPath: join(directory, 'history.jsonl'),
+        tickSeconds: 60,
+        systemNotify: false,
+      }))
+      const command = commands.get('cron-transfer')
+      assert.ok(command)
+      const controller = new AbortController()
+      const result = await command.handler({
+        agent: commandAgent,
+        rawInput: JSON.stringify({
+          expectedPreset: 'standard',
+          expectedCwd: directory,
+          transfers: [{ id: 'source-transfer', from: 'source-owner', to: targetMeta.id }],
+        }),
+        attachments: [],
+        signal: controller.signal,
+      })
+      assert.equal(result.kind, 'success')
+      assert.equal(JSON.parse(readFileSync(taskFile, 'utf8')).tasks[0].sessionId, targetMeta.id)
+      assert.equal(stats, 4, 'initial/final target reads each stat before and after')
+      assert.equal(opens, 2)
+      assert.equal(releases, 2, 'both exact tagged read handles close')
+    } finally {
+      for (const dispose of disposers) await dispose?.()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  }
+  console.log(`✓ Core ${version} actual JSONL handle class → Cron cold resume + hot owner transfer; stable detached/shared-frozen reads and cleanup (fake storage/agents)`)
 }

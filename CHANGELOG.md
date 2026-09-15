@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Add the direct human `/cron-transfer <JSON>` command for atomic hot transfer of up to 32 dynamic task owners (#41). The command is optional when the Host command registry is absent and is deliberately not exposed as a model tool or HTTP endpoint.
+- Require the invoking Agent to be the exact live top-level root, reject attachments, and validate a strict batch grammar with unique task/from/to identifiers. Every target must be a persisted blank root Session matching the caller-declared effective preset and absolute working directory; title/metadata-only target logs remain valid.
+- Use stable modern persistence reads (`stat/open/read/close/stat`) with revision/header checks and legacy `inspect` only on older public seams. Fence every task before asynchronous work, reject overlapping transfers, take final parallel target snapshots, then synchronously recheck live-root headers/events, task identity/revision/owner, active runs, pending history and target conflicts before one strict atomic commit. The freshness barrier is a single-Host guarantee; cross-process writers must be externally serialized.
+- Preserve task IDs (including IDs equal to their former Session IDs), prompts, rules, enable state, run stamps, overrides and all historical records. Existing history keeps its original `sessionId`; no follow-up or task run is generated, and the result reports only task IDs and old/new owners.
+- Transfer does not delete or rewrite Session data or presets. Presets recorded by historical Sessions, including an old rendering preset, must remain available for Core to reconstruct that history independently of the moved tasks.
+- This pre-1.0 minor release adds an operator-only ownership capability while preserving existing scheduling, model-tool, HTTP, history and Client behavior. No Client source or distributed browser bundle changes.
+
 ## 0.5.2
 
 - Bound failed cold Session resumes with per-owner exponential backoff from 30 seconds to 5 minutes, sharing concurrent attempts and limiting cold-start pressure to four owners. Other live owners keep progressing; repair automatically restores overdue delivery without replaying successful slots.
