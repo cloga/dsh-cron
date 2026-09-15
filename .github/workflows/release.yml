@@ -79,6 +79,12 @@ jobs:
           ref: fb2c4b9e698e30edb738bca4cf0618587db7d203
           path: dsh-015-rc2
           persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: 0a15e36e7f82b6ed45af6fa9759f29b40dcd965d
+          path: dsh-016-alpha1
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -105,10 +111,14 @@ jobs:
         env:
           DSH_CORE_PATH: ${{ github.workspace }}/dsh-015-rc2
         run: pnpm test:core
+      - name: Verify exact 0.1.6-alpha.1 source, lifecycle and native contracts
+        env:
+          DSH_CORE_PATH: ${{ github.workspace }}/dsh-016-alpha1
+        run: pnpm test:core
       - name: Verify sidebar browser regression
         env:
-          DSH_CORE_PATH: ${{ github.workspace }}/dsh-015-rc2
-          DSH_CORE_REF: fb2c4b9e698e30edb738bca4cf0618587db7d203
+          DSH_CORE_PATH: ${{ github.workspace }}/dsh-016-alpha1
+          DSH_CORE_REF: 0a15e36e7f82b6ed45af6fa9759f29b40dcd965d
         run: |
           pnpm exec playwright install --with-deps chromium
           pnpm test:sidebar

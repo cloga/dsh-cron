@@ -49,7 +49,8 @@ test('PR policy and immutable source build are wired into CI', () => {
 
 test('every exact Core baseline remains wired into CI, release and documentation', () => {
   assert.equal(CORE_COMMITS.get('fb2c4b9e698e30edb738bca4cf0618587db7d203'), '0.1.5-rc.2')
-  assert.equal(CORE_COMMITS.size, 5)
+  assert.equal(CORE_COMMITS.get('0a15e36e7f82b6ed45af6fa9759f29b40dcd965d'), '0.1.6-alpha.1')
+  assert.equal(CORE_COMMITS.size, 6)
   assert.ok(ci.includes("os: [ubuntu-latest, windows-latest]"))
   assert.ok(ci.includes("node: ['22.19.0', '24']"))
   for (const [commit, version] of CORE_COMMITS) {
@@ -68,7 +69,7 @@ test('every exact Core baseline remains wired into CI, release and documentation
 })
 
 test('native Sidebar execution cannot silently disappear from required verification', () => {
-  const ref = [...CORE_COMMITS].find(([, version]) => version === '0.1.5-rc.2')[0]
+  const ref = [...CORE_COMMITS].find(([, version]) => version === '0.1.6-alpha.1')[0]
   assert.match(manifest.scripts.test, /native-sidebar-render\.test\.mjs/)
   assert.match(manifest.scripts['test:core'], /official-sidebar-contract\.test\.mjs/)
   assert.match(manifest.scripts['test:sidebar'], /official-sidebar-browser\.test\.mjs/)
@@ -79,7 +80,7 @@ test('native Sidebar execution cannot silently disappear from required verificat
   assert.ok(browser.includes(`ref: ${ref}\n          path: dsh-sidebar-core`))
   assert.ok(browser.includes('run: pnpm test:sidebar'))
   const releasedBrowser = release.split('      - name: Verify sidebar browser regression\n')[1]?.split('      - name:')[0]
-  assert.ok(releasedBrowser?.includes('DSH_CORE_PATH: ${{ github.workspace }}/dsh-015-rc2'))
+  assert.ok(releasedBrowser?.includes('DSH_CORE_PATH: ${{ github.workspace }}/dsh-016-alpha1'))
   assert.ok(releasedBrowser.includes(`DSH_CORE_REF: ${ref}`))
   assert.ok(releasedBrowser.includes('pnpm test:sidebar'))
   for (const step of [browser, releasedBrowser]) assert.ok(!step.includes('continue-on-error'))

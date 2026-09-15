@@ -825,8 +825,8 @@ console.log('✓ cron-transfer modern stat/open/read/close compatibility, stabil
 console.log('✓ cron-transfer detects async task object/revision/owner races before commit')
 
 for (const liveChange of [
-  { modern: true, event: { type: 'turn/start', data: {} }, pattern: /not blank/ },
-  { modern: false, event: { type: 'agent-preset/selected', data: { agentPreset: 'standard' } }, pattern: /expectedPreset/ },
+  { modern: true, event: { type: 'turn/start', data: {} } },
+  { modern: false, event: { type: 'agent-preset/selected', data: { agentPreset: 'standard' } } },
 ]) {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-live-race-'))
   const taskFile = join(directory, 'tasks.json')
@@ -836,9 +836,8 @@ for (const liveChange of [
   ])
   const commandAgent = { id: 'command-root', session: { id: 'command-session' }, followup: () => {} }
   let liveEvents = []
-  let snapshotCalls = 0
   const liveSession = { header: validTransferTarget('target-a').meta }
-  if (liveChange.modern) liveSession.snapshotEvents = () => { snapshotCalls++; return liveEvents }
+  if (liveChange.modern) Object.defineProperty(liveSession, 'seq', { get: () => liveEvents.length })
   else liveSession.events = liveEvents
   const liveTarget = { id: 'target-root', session: liveSession, followup: () => {} }
   let targetBReads = 0
@@ -865,15 +864,14 @@ for (const liveChange of [
     liveEvents = [liveChange.event]
     if (!liveChange.modern) liveSession.events = liveEvents
     releaseTargetB()
-    await assertCommandError(pending, liveChange.pattern)
-    assert.equal(snapshotCalls, liveChange.modern ? 1 : 0, 'modern snapshotEvents is preferred while legacy events remains supported')
+    await assertCommandError(pending, /changed during transfer/)
     assert.deepEqual(JSON.parse(readFileSync(taskFile, 'utf8')).tasks.map(task => task.sessionId), ['owner-a', 'owner-b'])
   } finally {
     transferRun.disposers.forEach(dispose => dispose?.())
     rmSync(directory, { recursive: true, force: true })
   }
 }
-console.log('✓ final live-root snapshotEvents and legacy events reject target A changes while target B is blocked')
+console.log('✓ final live-root seq and legacy event count reject target A changes while target B is blocked')
 
 {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-cron-transfer-abort-'))
