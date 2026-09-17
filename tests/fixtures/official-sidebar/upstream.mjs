@@ -42,7 +42,7 @@ export function coreBlob(path) {
 // This is import resolution, not replacement implementations. Resolve only ordinary
 // installed dependencies; never install, download, rewrite, or load another Core.
 function ordinary(name) {
-  if (!['picomatch/posix', 'zustand/vanilla', 'zustand/middleware', 'zustand/shallow', 'immer'].includes(name)) {
+  if (!['picomatch/posix', 'zustand/vanilla', 'zustand/middleware', 'zustand/shallow', 'immer', 'zod'].includes(name)) {
     throw new Error(`Unreviewed ordinary dependency ${name}`)
   }
   try { return require(name) } catch (error) {

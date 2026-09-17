@@ -13,6 +13,12 @@
 
 **English:** Session-bound scheduled prompts for DeepSeek Harness. Create tasks in chat, manage the current session's tasks/history in the official native Sidebar, and receive results in the owning conversation. On capable Core versions an optional Scheduled Sessions hub lists only owner-level counts/next-run time and navigates through the public Workspace service; older surfaces keep the existing current-session fallbacks. The hub is an index, not a cross-owner task center, and does not change scheduling policy. Ships prebuilt client code; no install scripts.
 
+## 0.7.3 官方优先适配 / Official-first adaptation
+
+目标为精确 DSH `0.1.6-alpha.2`（`ddefc45fbc7f8e46dd73185e68295696d1297887`）。复用官方标准 Session 身份与 `retainedBy.mainView`，修复同时打开主会话和嵌入会话时的轮询/面板归属，不再让最后挂载的 header 决定全局 owner。官方 Schedule 已有持久提醒；新简单 live-session 提醒优先官方，但未覆盖的日历/IANA cron、主动冷恢复、编辑/启停/历史与通知继续保留。已有任务不自动迁移或删除。
+
+**English:** This patch uses official multi-instance Session identity/retention contracts. Official Schedule has partial parity, not absence: prefer it for new simple live-owner reminders, retain Cron for calendar recurrence, cold-root resume and management/history requirements. No storage-format migration or live installation occurs. See the [exact-source parity, migration and rollback review](docs/official-first-0.1.6-alpha.2.md).
+
 ## 核心能力
 
 | 能力 | 你可以做什么 |
@@ -73,18 +79,18 @@
 在常驻的 **Web / 旧 Tauri Desktop 的 `web` Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.7.2
+dsh plugin --profile web add github:cloga/dsh-cron#v0.7.3
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.7.2 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.7.2) 下载 `dsh-cron-0.7.2.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.7.3 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.7.3) 下载 `dsh-cron-0.7.3.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.7.2.tgz
+dsh plugin --profile web add ./dsh-cron-0.7.3.tgz
 ```
 
-**新 Electron Desktop 的 `desktop` Profile 由应用独占管理，不能照搬以上 CLI 命令。** 请使用该 Desktop 版本提供的原生插件管理入口安装固定版本或已校验的本地包，并先确认其安装、用户插件保留及重启行为。Cron 0.7.2 使用公共 `/api/cron/*` shared Fetch 路由，不要求 Desktop 开启 Web 监听器或 `webRuntime`；Desktop 自身的旧锁文件与重启移除插件问题仍需由 Desktop 更新修复。不要同时让新旧两套 Host 调度同一份任务存储。
+**新 Electron Desktop 的 `desktop` Profile 由应用独占管理，不能照搬以上 CLI 命令。** 请使用该 Desktop 版本提供的原生插件管理入口安装固定版本或已校验的本地包，并先确认其安装、用户插件保留及重启行为。Cron 0.7.3 使用公共 `/api/cron/*` shared Fetch 路由，不要求 Desktop 开启 Web 监听器或 `webRuntime`；Desktop 自身的旧锁文件与重启移除插件问题仍需由 Desktop 更新修复。不要同时让新旧两套 Host 调度同一份任务存储。
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
 
@@ -95,7 +101,7 @@ dsh plugin --profile web add ./dsh-cron-0.7.2.tgz
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.2'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.3'
 ```
 
 </details>
@@ -108,7 +114,7 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.2'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.7.2`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。Electron Desktop 则读取其 `desktop` Profile 的已安装清单，不调用 Web CLI 修改该目录。
+应显示 `dsh-cron@0.7.3`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。Electron Desktop 则读取其 `desktop` Profile 的已安装清单，不调用 Web CLI 修改该目录。
 
 ### 3. 在安全时机激活
 
@@ -120,7 +126,7 @@ pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 
 先核对任务、历史、原 owner、时间规则、时区和实际启停状态，再检查重启后的面板读取。`owners/list/history` 不恢复 Agent、不触发任务；读取成功也不证明模型认证、冷会话恢复或业务执行成功。发布、部署等任务应按获准计划核验实际终态和业务结果，不要为了检查安装而直接点击“立即运行”。
 
-0.7.2 先以只读 GET 探测 `/api/cron/capabilities`，使用现代 Web 与 Electron 共用的 `/api/cron/*`；只有探测返回 404/405 时才选择旧 Web `/cron/api/*`。401/403、网络错误和无效成功响应不会降级绕过认证。探测有单飞、取消与截止保护，不缓存已完成的路由选择；修改请求只发送一次且不跟随重定向。
+0.7.3 先以只读 GET 探测 `/api/cron/capabilities`，使用现代 Web 与 Electron 共用的 `/api/cron/*`；只有探测返回 404/405 时才选择旧 Web `/cron/api/*`。401/403、网络错误和无效成功响应不会降级绕过认证。探测有单飞、取消与截止保护，不缓存已完成的路由选择；修改请求只发送一次且不跟随重定向。
 
 ## 使用方式
 
@@ -140,6 +146,10 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 | `every` | `1800` | 固定间隔秒数；最小 10 秒，每次执行都可能产生模型费用 |
 | `daily` | `09:00` | 指定时区的每日时刻 |
 | `cron` | `0 9 * * 1-5` | 分、时、日、月、星期；例为工作日 09:00 |
+
+`every` 的下次时间 = 上次 **followup 接受投递时间** + 间隔；首次以 Host 启动时间为锚。它不是创建时间对齐的固定频率，也不是等待模型完成后再计时；延迟投递会移动下一次时间。成功保存的 run stamp 可避免正常重启后重放已消费时刻，但投递发生在保存之前，崩溃或写入失败窗口可能造成重复，不能声称 exactly-once。外部发布/发送等副作用需幂等。
+
+**Interval/durability:** every is anchored to previous accepted delivery (not fixed-rate or completion time). Followup precedes stamp persistence; crashes or failed saves can duplicate delivery. Persisted stamps suppress already consumed slots during normal restart, not exactly-once external effects.
 
 `daily` / `cron` 的 `timeZone` 使用 IANA 名称，例如 `Asia/Shanghai`。未指定时采用插件 `defaultTimeZone`，**默认是 UTC**，不要把它当成本机时区。默认调度检查间隔为 15 秒，不是硬实时系统。
 
@@ -197,8 +207,8 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 
 | 项目 | 支持范围 |
 | --- | --- |
-| DSH Core | 保留受控 `0.1.1-rc.2`、官方 `0.1.2-rc.1`、`0.1.3-alpha.1`、精确 `0.1.5-alpha.1` / `alpha.2` / `rc.2`；v0.7.1 新增精确 `0.1.6-alpha.1`。下文区分源码合同、fixture 与真实 Host 验证；不承诺整个 0.1.5 或 0.1.6 系列兼容 |
-| 官方 Sidebar | v0.5.0 使用公开 registry + keyed body Slot；精确 `0.1.5-alpha.1` / `alpha.2` / `rc.2` 与 `0.1.6-alpha.1` 的原生模型合同可执行验证，缺少原生服务的旧基线走回退，不推断其他版本 |
+| DSH Core | 保留受控 `0.1.1-rc.2`、官方 `0.1.2-rc.1`、`0.1.3-alpha.1`、精确 `0.1.5-alpha.1` / `alpha.2` / `rc.2`；v0.7.1 新增精确 `0.1.6-alpha.1`，v0.7.3 新增精确 `0.1.6-alpha.2`。下文区分源码合同、fixture 与真实 Host 验证；不承诺整个 0.1.5 或 0.1.6 系列兼容 |
+| 官方 Sidebar | v0.5.0 使用公开 registry + keyed body Slot；精确 `0.1.5-alpha.1` / `alpha.2` / `rc.2` 与 `0.1.6-alpha.1` / `alpha.2` 的原生模型合同可执行验证，缺少原生服务的旧基线走回退，不推断其他版本 |
 | Better Sidebar | **可选的次级回退**；按 `0.18.0` 的公开 Client Service 合同验证；不为原生集成重新启用它，缺失/禁用时仍可独立面板 |
 | Profile | 常驻 Web / Desktop Web；一次性 headless 进程不提供未来持续调度保证 |
 | Node.js / 开发包管理器 | `^22.19.0 || >=24.0.0` / `pnpm@11.7.0` |
@@ -263,10 +273,11 @@ pnpm release:check --base origin/main  # 检查已提交的 PR 候选
 | 0.1.5-alpha.2 | `b2e3b2a0125854567a4a5fcba75782e42fe84901` |
 | 0.1.5-rc.2 | `fb2c4b9e698e30edb738bca4cf0618587db7d203` |
 | 0.1.6-alpha.1 | `0a15e36e7f82b6ed45af6fa9759f29b40dcd965d` |
+| 0.1.6-alpha.2 | `ddefc45fbc7f8e46dd73185e68295696d1297887` |
 
-未设置 `DSH_CORE_PATH` 时只验证包声明并显式跳过源码检查。CI 在 Windows/Linux、Node 22.19/24 上检查六个精确基线。源码验证检查真实返回类型；精确 0.1.5 三个版本和 0.1.6-alpha.1 额外验证 header utilities/session 与 shell overlay/root 的 Slot 声明，并执行各自 Git 源码的 JSONL handle 类接入 Cron 冷恢复与 owner 转移（fake storage/AgentRegistry），覆盖两种 eventState、空/非空事件、current/primed 切片、preset/model、幂等关闭和关闭后拒绝读取。0.1.6 还验证串行 awaited `agent/created`、异步 resume、`session.seq` 和同步历史 API 的弃用标记。这不是完整 Core 启动、JSONL 文件迁移/IO、真实模型或已安装 Host/GUI 验证，不把 API 名称检查称为全面兼容。
+未设置 `DSH_CORE_PATH` 时只验证包声明并显式跳过源码检查。CI 在 Windows/Linux、Node 22.19/24 上检查七个精确基线。源码验证检查真实返回类型；精确 0.1.5 三个版本和 0.1.6-alpha.1 / alpha.2 额外验证 header utilities/session 与 shell overlay/root 的 Slot 声明，并执行各自 Git 源码的 JSONL handle 类接入 Cron 冷恢复与 owner 转移（fake storage/AgentRegistry），覆盖两种 eventState、空/非空事件、current/primed 切片、preset/model、幂等关闭和关闭后拒绝读取。0.1.6 还验证串行 awaited `agent/created`、异步 resume、`session.seq` 和同步历史 API 的弃用标记。这不是完整 Core 启动、JSONL 文件迁移/IO、真实模型或已安装 Host/GUI 验证，不把 API 名称检查称为全面兼容。
 
-`tests/official-sidebar-contract.test.mjs` 还执行精确 0.1.5 三个版本和 0.1.6-alpha.1 的原生 registry/controller/domain/store/dockkit planner；更旧两条源码基线没有原生 API，明确跳过原生用例而保留回退验证。浏览器用实际 Cron 构建、0.1.6-alpha.1 模型和合成容器检查导航、归属、分栏、状态与清理，并不加载完整官方 renderer 或代表用户 GUI 已更新。CI/Release 为浏览器明确提供该精确源码，不能以缺少源码的跳过结果代替这一门禁。
+`tests/official-sidebar-contract.test.mjs` 还执行精确 0.1.5 三个版本和 0.1.6-alpha.1 / alpha.2 的原生 registry/controller/domain/store/dockkit planner；更旧两条源码基线没有原生 API，明确跳过原生用例而保留回退验证。浏览器用实际 Cron 构建、0.1.6-alpha.2 模型和合成容器检查导航、归属、分栏、状态与清理，并不加载完整官方 renderer 或代表用户 GUI 已更新。CI/Release 为浏览器明确提供该精确源码，不能以缺少源码的跳过结果代替这一门禁。
 
 设置 `DSH_BETTER_SIDEBAR_PATH` 指向 0.18.0 源码包后，可运行 `node tests/sidebar-contract.test.mjs` 验证旧可选 reducer/Cordis 合同；不用安装或启用该插件。截图复现命令见 [图片说明](docs/images/README.md)。
 

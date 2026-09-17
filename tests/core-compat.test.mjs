@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 import { CORE_COMMITS, CORE_READ_SHAPES, coreReadShape, assertSourceIdentity, openCoreSource, assertHandleContract, assertSlotContract, declaration, loadJsonlHandle } from './core-source.mjs'
 
-const DSH_RANGE = '>=0.1.1-rc.2 <0.1.2-0 || >=0.1.2-alpha.4 <0.1.2 || >=0.1.3-alpha.1 <0.1.3-alpha.2 || 0.1.5-alpha.1 || 0.1.5-alpha.2 || 0.1.5-rc.2 || 0.1.6-alpha.1'
+const DSH_RANGE = '>=0.1.1-rc.2 <0.1.2-0 || >=0.1.2-alpha.4 <0.1.2 || >=0.1.3-alpha.1 <0.1.3-alpha.2 || 0.1.5-alpha.1 || 0.1.5-alpha.2 || 0.1.5-rc.2 || 0.1.6-alpha.1 || 0.1.6-alpha.2'
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 const requiredPeers = ['agent', 'agent-presets', 'agent-default-model', 'llm', 'session', 'session-persistence', 'tools'].map(name => `@deepseek-ai/dsh-${name}`)
 const optionalPeers = ['@deepseek-ai/dsh-host-webserver', '@deepseek-ai/dsh-web']
@@ -20,13 +20,13 @@ for (const name of [...requiredPeers, ...optionalPeers]) {
 for (const name of optionalPeers) assert.equal(manifest.peerDependenciesMeta[name]?.optional, true)
 assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-layout'))
 assert.ok(!manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-runtime'))
-console.log('✓ package policy retains legacy Core and admits only exact certified prereleases through 0.1.6-alpha.1')
+console.log('✓ package policy retains legacy Core and admits only exact certified prereleases through 0.1.6-alpha.2')
 
-assert.equal(CORE_COMMITS.size, 6, 'retain all previous exact pins plus 0.1.6-alpha.1')
+assert.equal(CORE_COMMITS.size, 7, 'retain all previous exact pins plus 0.1.6-alpha.2')
 assert.deepEqual([...CORE_READ_SHAPES.keys()], [...CORE_COMMITS.values()])
 assert.equal(coreReadShape('0.1.2-rc.1'), 'inspection')
 assert.equal(coreReadShape('0.1.3-alpha.1'), 'array')
-for (const version of ['0.1.5-alpha.1', '0.1.5-alpha.2', '0.1.5-rc.2', '0.1.6-alpha.1']) {
+for (const version of ['0.1.5-alpha.1', '0.1.5-alpha.2', '0.1.5-rc.2', '0.1.6-alpha.1', '0.1.6-alpha.2']) {
   assert.equal(coreReadShape(version), 'event-state', `${version} must execute the actual JSONL handle fixture`)
 }
 for (const version of ['0.1.5-alpha.3', '0.1.5-rc.1', '0.1.5-rc.3', '0.1.5']) {
@@ -91,6 +91,16 @@ if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts')))
         assert.doesNotMatch(workspaceNavigation, /openSession\(sessionId: SessionId\): void/)
         assert.doesNotMatch(read('packages/client/ui-sidebar/src/client/contract/slots.ts'), /'sidebar\.panellist'/)
         console.log('✓ Core alpha.1 lacks the optional global hub; existing Cron surfaces remain supported')
+      } else if (version === '0.1.6-alpha.2') {
+        assert.match(workspaceNavigation, /openSession\(target: SessionTarget\): void/)
+        assert.match(read('packages/api/session-controller/src/client/contract/sessions.ts'), /type SessionTarget = SessionId \| SubagentAddress/)
+        const uiSession = read('packages/client/ui-session/src/client/index.ts')
+        assert.match(uiSession, /session: SessionReference/)
+        assert.match(uiSession, /sessionId: binding\.sessionId/)
+        assert.match(uiSession, /retainedBy\.mainView/)
+        const client = readFileSync(new URL('../src/client/index.tsx', import.meta.url), 'utf8')
+        assert.doesNotMatch(client, /inject: \(sessionId:/, 'never inject a SessionReference as a Session id')
+        assert.match(client, /useSessions\(mainSessionOwner\)/)
       } else {
         assert.match(workspaceNavigation, /openSession\(sessionId: SessionId\): void/)
       }
@@ -100,6 +110,17 @@ if (coreRef || existsSync(join(corePath, 'packages/core/session/src/index.ts')))
     assert.match(persistence, /interface SessionInspection[\s\S]*?readonly events: readonly SessionEvent\[\]/)
   }
   assert.match(read('packages/core/tools/src/index.ts'), /interface ToolExecutionInput[\s\S]*?readonly agent\?: Agent/)
+  if (version === '0.1.6-alpha.2') {
+    const agent = read('packages/core/agent/src/index.ts')
+    assert.match(agent, /async resume\(options: ResumeAgentOptions\): Promise<AgentHandle>/)
+    assert.match(agent, /await this\.ctx\.serial\(entry\.carrier, 'agent\/created', \{/)
+    const production = readFileSync(new URL('../index.js', import.meta.url), 'utf8')
+    assert.doesNotMatch(production, /\.snapshotEvents\s*\(/)
+    const schedule = read('packages/schedule/schedule/README.md')
+    assert.match(schedule, /fixed interval only/)
+    assert.match(schedule, /cold Session[\s\S]*?after resume/)
+    assert.match(schedule, /no history, mutation, retry, or acknowledgement semantics/)
+  }
   if (version === '0.1.6-alpha.1') {
     const agent = read('packages/core/agent/src/index.ts')
     assert.match(agent, /async resume\(options: ResumeAgentOptions\): Promise<AgentHandle>/)

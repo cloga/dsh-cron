@@ -11,6 +11,7 @@ import { registerNativeSidebar, openNative, ownerTitle, createPanelConsumers, cr
 import { createReadPoll, ReadTimeoutError } from './read-poll.js'
 import { registerScheduledSessionsHub } from './global-hub.js'
 import { cronTransport } from './transport.js'
+import { mainSessionOwner, createHeaderOwners } from './session-owner.js'
 export { ownerLabel, SCHEDULED_SESSIONS_ID } from './global-hub.js'
 
 /** Services required from the client runtime. */
@@ -37,6 +38,7 @@ interface ToastItem extends ToastEvent {
 
 let drawerOpen = false
 let activeSessionId: string | null = null
+const headerOwners = createHeaderOwners(setActiveSession)
 let drawerSessionId: string | null = null
 let sidebar: SidebarService | null = null
 let nativeSidebar: NativeController | null = null
@@ -872,7 +874,7 @@ function CronSidebarPanel({ scope, visible, t }: SidebarProps & { t: T }) {
 
 function CronNativePanel({ sessionId, useTabInfo, useSessions, t = fallbackT }: NativeBodyProps & { t?: T }) {
   const { panel, tab } = useTabInfo()
-  const current = useSessions(sessions => sessions.current)
+  const current = useSessions(mainSessionOwner)
   const title = useSessions(sessions => ownerTitle(sessions, sessionId, '', t('panel.untitled')))
   const aborted = useSyncExternalStore(useCallback(listener => {
     tab.signal.addEventListener('abort', listener)
@@ -918,7 +920,7 @@ function CronDrawer({ t, useSessions }: SlotProps) {
 
 // --- header trigger (conversation.session.header.utilities entry) -----------------
 
-function CronAction({ t, sessionId }: SlotProps) {
+function CronAction({ t, sessionId, mainOwner }: SlotProps & { mainOwner?: string | null }) {
   const tr = t ?? fallbackT
   const state = useDrawerState()
   const { count, unread } = sessionView(sessionId ?? null)
@@ -927,9 +929,9 @@ function CronAction({ t, sessionId }: SlotProps) {
   const open = visible || (state.open && state.drawerSessionId === sessionId)
   const description = tr('trigger.summary', { count, unread })
   useEffect(() => {
-    setActiveSession(sessionId ?? null)
-    return () => { if (activeSessionId === sessionId) setActiveSession(null) }
-  }, [sessionId])
+    if (!sessionId) return
+    return headerOwners.mount(sessionId, mainOwner)
+  }, [sessionId, mainOwner])
 
   return (
     <button
@@ -961,7 +963,8 @@ function SessionCronAction({ useSessions, ...props }: SlotProps & { useSessions:
   useEffect(() => {
     if (props.sessionId) { sessionTitles.set(props.sessionId, title); storeNotify() }
   }, [props.sessionId, title])
-  return <CronAction {...props} />
+  const mainOwner = useSessions(mainSessionOwner)
+  return <CronAction {...props} mainOwner={mainOwner} />
 }
 function CronHeaderAction(props: SlotProps) {
   return props.useSessions ? <SessionCronAction {...props} useSessions={props.useSessions} /> : <CronAction {...props} />
@@ -1019,6 +1022,7 @@ export function apply(ctx: any) {
     panelConsumers.clear()
     sessionTitles.clear()
     drawerOpen = false
+    headerOwners.clear()
     activeSessionId = drawerSessionId = null
     sessionViews.clear()
     toasts = []
@@ -1033,7 +1037,8 @@ export function apply(ctx: any) {
       id: 'cron-trigger',
       order: -50,
       locale: 'cron',
-      inject: (sessionId: string) => ({ sessionId }),
+      // sessionId is a standard Session prop. The scope target is an owned
+      // SessionReference in alpha.2, not a string to inject back into props.
     }, CronHeaderAction))
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register({

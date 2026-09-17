@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.3
+
+- Qualify exact official DSH `0.1.6-alpha.2` / `ddefc45fbc7f8e46dd73185e68295696d1297887` without widening to unverified 0.1.6 versions (#49).
+- Reuse standard Session-scoped `sessionId`; remove string-target injection incompatible with alpha.2 SessionReference scope targets. Elect the main owner from public `retainedBy.mainView`, retaining legacy `current` support.
+- Track header occurrences with independent leases: mounting an embedded conversation or unmounting one duplicate header cannot hijack or clear a surviving main owner's watcher/dialog. Explicit embedded-owner actions stay pinned to that owner.
+- Record official-first parity: prefer official Schedule for simple live-session reminders; retain calendar/IANA cron, cold resume and management/history semantics not covered by official Schedule. No task/history migration or blanket replacement.
+- Correct interval and durability descriptions: Cron every is based on previous accepted delivery (minimum 10s), not fixed-rate or model-completion time; successfully persisted stamps suppress consumed slots but enqueue-before-save permits duplicates after crashes/write failure.
+- Add immutable source contract and real React multi-instance regressions, and rebuild the committed browser artifact. This is a pre-1.0 compatibility patch, not live deployment or model-call evidence.
+
 ## 0.7.2
 
 - Repair Electron Desktop management transport through the public `connection.fetch` exact-route registry at `/api/cron/*`, without requiring a Web listener or `webRuntime` (#47). The scheduler, task/history format, original Session ownership and existing supported Core ranges remain unchanged.
