@@ -67,15 +67,17 @@ try {
       sessionId, taskCount: 1, enabledCount: 1, nextRunAt: `2026-09-${16 + index}T0${index}:00:00Z`,
     }))
     window.fetch = async (url, options) => {
+      // This historical fixture deliberately models legacy Web (no shared registry).
+      if (url === '/api/cron/capabilities' && options.method === 'GET') return new Response('', { status: 404 })
       const payload = JSON.parse(options.body)
       if (String(url).endsWith('/owners')) {
         if (Object.keys(payload).length !== 0) throw new Error('Owner index leaked a request identity')
-        return { json: async () => ({ ok: true, result: ownerRows }) }
+        return { ok: true, status: 200, json: async () => ({ ok: true, result: ownerRows }) }
       }
       if (payload.sessionId !== owner) throw new Error('Unexpected owner')
       const tasks = [0, 1, 2].map(index => ({ id: 'daily-report-' + index, sessionId: owner, prompt: 'Summarize the latest project progress and verification results.', enabled: true, origin: 'dynamic', schedule: { daily: '09:00', timeZone: 'Asia/Shanghai' }, nextRunAt: '2026-09-06T01:00:00Z' }))
       const records = [{ id: 'run-' + recordVersion, taskId: tasks[0].id, sessionId: owner, status: 'completed', firedAt: '2026-09-05T01:00:00Z', scheduledFor: '2026-09-05T01:00:00Z', startedAt: 0, completedAt: 42000, excerpt: 'Task finished. All three reports were reused; no duplicate publication.' }]
-      return { json: async () => ({ ok: true, result: String(url).endsWith('/list') ? { tasks } : { records } }) }
+      return { ok: true, status: 200, json: async () => ({ ok: true, result: String(url).endsWith('/list') ? { tasks } : { records } }) }
     }
     const ctx = {
       effect: fn => { const dispose = fn(); if (dispose) disposers.push(dispose) },

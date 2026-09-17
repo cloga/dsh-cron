@@ -94,6 +94,7 @@ jobs:
       - name: Verify package and exact rc.1 source
         env:
           DSH_CORE_PATH: ${{ github.workspace }}/dsh-rc1
+          DSH_TRANSPORT_CORE_PATH: ${{ github.workspace }}/dsh-015-rc2
         run: pnpm verify
       - name: Verify exact 0.1.3-alpha.1 source
         env:
