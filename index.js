@@ -1,7 +1,7 @@
 // dsh-cron: scheduled tasks for DeepSeek Harness.
 //
 // Tasks fire by injecting a plugin-sourced user message into the most
-// recently active root agent via agent.followup(), which queues an ordinary
+// owning root agent via agent.followup(), which queues an ordinary
 // turn and wakes the driver — the same delivery path dsh-schedule uses.
 //
 // Task sources:
@@ -10,8 +10,8 @@
 //     persisted to storagePath)
 //
 // Run stamps (lastRunAt / firedAt), enabled overrides, and execution history
-// are persisted so a restart never refires a consumed slot and the UI can
-// show what ran. Under `dsh web` the plugin additionally serves
+// are persisted to suppress slots successfully saved before restart. Enqueue
+// precedes stamping: a crash or failed save can duplicate delivery; not exactly-once. Under `dsh web` the plugin additionally serves
 // POST /cron/api/<method> for its client-half panel (optional webServer
 // injection: headless profiles keep full scheduling without the API).
 
@@ -1459,7 +1459,7 @@ export function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: 'cron_add',
-    description: 'Add a scheduled task. Set exactly one rule: at (ISO instant, one-shot), every (interval seconds, min 60), daily ("HH:MM" local time), or cron (standard 5-field expression "minute hour day month weekday", local time — e.g. "0 9 * * *" = daily 09:00, "*/30 * * * *" = every 30 min, "0 9 * * 1" = Mondays 09:00). Convert the user\'s natural-language schedule into one of these rules. The task prompt is delivered to the agent automatically when due and the result is replied in the conversation. Dynamic tasks persist across restarts.',
+    description: 'Add a scheduled task. Set exactly one rule: at (ISO instant, one-shot), every (seconds after previous accepted delivery, min 10), daily ("HH:MM" local time), or cron (standard 5-field expression "minute hour day month weekday", local time — e.g. "0 9 * * *" = daily 09:00, "*/30 * * * *" = every 30 min, "0 9 * * 1" = Mondays 09:00). Convert the user\'s natural-language schedule into one of these rules. The task prompt is delivered to the agent automatically when due and the result is replied in the conversation. Dynamic tasks persist across restarts.',
     parameters: {
       id: { type: 'string', description: 'Optional unique task id (letters, digits, -, _). One is generated when omitted.' },
       prompt: { type: 'string', required: true, description: 'What the agent should do when the task fires.' },

@@ -9,7 +9,7 @@ export interface NativeController {
 interface NativeRegistry { register(definition: ReturnType<typeof nativeDefinition>): () => void }
 export interface SessionList {
   current?: string
-  byId: Record<string, { displayTitle?: string; blank?: boolean } | undefined>
+  byId: Record<string, { displayTitle?: string; blank?: boolean; retainedBy?: { mainView?: number } } | undefined>
 }
 export type UseSessions = <T>(selector: (sessions: SessionList) => T) => T
 export interface NativeBodyProps {

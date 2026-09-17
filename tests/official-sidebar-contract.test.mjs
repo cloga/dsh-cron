@@ -37,7 +37,8 @@ test(`exact upstream public contracts at ${CORE_REV}`, nativeOptions, () => {
   assert.ok(controller.includes('openTab'))
   assert.ok(!controller.includes('getSnapshot'), 'public controller is not a snapshot store')
   assert.ok(!controller.includes('openTabIn'), 'private cross-session navigation is not a public service method')
-  assert.deepEqual(memberNames(declaration(service, 'SidebarRightPlacement')), ['paneId', 'replaceTab', 'revealIfOpened'])
+  assert.deepEqual(memberNames(declaration(service, 'SidebarRightPlacement')), CORE_REV === 'ddefc45fbc7f8e46dd73185e68295696d1297887'
+    ? ['paneId', 'preferNewPane', 'replaceTab', 'revealIfOpened'] : ['paneId', 'replaceTab', 'revealIfOpened'])
   assert.deepEqual(memberNames(declaration(service, 'SidebarRightOpenTabOptions')), ['params'])
   assert.match(slots, /readonly visible: boolean/)
   assert.match(slots, /readonly signal: AbortSignal/)

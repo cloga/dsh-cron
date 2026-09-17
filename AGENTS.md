@@ -9,11 +9,15 @@ This is the repository's standing contract for coding agents. Read it at session
 3. Read `README.md` for product/support contracts, `docs/agentic-readiness.md` for architecture/testing, and `RELEASE.md` before release work. Use a feature branch and a tracking Issue; do not push directly to `main`.
 4. State scope, expected outputs and verification before editing. Maintain a short task list. Delegate independent work with explicit file ownership; review delegated results yourself.
 
+## Official-first upgrade review
+
+Before adapting to a new exact DSH release, compare each customization with official source/contracts. Prefer verified official parity, retain only concrete gaps with retirement conditions, and record migration/rollback and acceptance evidence in the Issue/PR. Similar names do not establish equivalence. See [alpha.2 parity review](docs/official-first-0.1.6-alpha.2.md); do not blanket-replace calendar scheduling, cold resume or management semantics with live-session reminders.
+
 ## Code map and invariants
 
 | Area | Entry points | Must preserve |
 | --- | --- | --- |
-| Host scheduler / tools / HTTP / persistence | `index.js`, `tests/host.test.mjs` | Root Session ownership; no cross-Session list/mutation; no fallback to another owner; no duplicate firing after restart; close persistence handles on failure. |
+| Host scheduler / tools / HTTP / persistence | `index.js`, `tests/host.test.mjs` | Root Session ownership; no cross-Session list/mutation; no fallback to another owner; persisted stamps suppress consumed slots after normal restart; document crash/write-failure duplicate window; close persistence handles on failure. |
 | Client / notifications | `src/client/index.tsx`, `locale.ts`, `styles.ts` | Session isolation, stale-response guards, hidden-panel polling cleanup, accessible modal/focus behavior, theme tokens. |
 | Official native Sidebar | `src/client/native-sidebar.ts`, `tests/native-sidebar*.test.mjs`, `tests/official-sidebar-*.test.mjs` | Public registry + keyed Slot only; current-owner open, retained tab lifetime across body unmount, multi-pane visibility, unchanged default guide, no private controller/state or new-Core runtime imports. |
 | Optional Better Sidebar | `src/client/sidebar.ts`, `tests/sidebar-contract.test.mjs` | Capability/version guards, correct owner, dedupe/float placement; independent fallback if missing, disabled or disposed. Do not depend on private Sidebar state or hashed CSS classes. |
@@ -34,8 +38,8 @@ pnpm release:check --base origin/main
 ```
 
 - `pnpm verify` includes typecheck, build, Host/client tests, release/readiness tests and package smoke. The final PR check compares **committed** changes against the PR base; commit the complete candidate before running `release:check` locally.
-- Browser tests are separate and mandatory for UI/release work. The official-sidebar fixture requires `DSH_CORE_PATH` and an allowlisted ref (CI/Release explicitly use rc.2); missing source is an explicit local skip, not its required CI acceptance. Its real Cron bundle/upstream models run in a **synthetic container**, not the full official renderer. Fixtures are not proof that the user's current GUI has been updated.
-- Set `DSH_CORE_PATH` to a clean source checkout at a supported exact commit for Core-source checks. Alternatively set `DSH_CORE_REF` as well to read immutable Git blobs at an allowlisted exact SHA without altering the checkout. Without `DSH_CORE_PATH`, tests explicitly skip source checks: report the skip, not a full compatibility pass. CI checks six exact Core commits (0.1.2-rc.1, 0.1.3-alpha.1, 0.1.5-alpha.1/.2/rc.2 and 0.1.6-alpha.1) on Windows/Linux and Node 22.19/24. Source-backed modern handle tests use fake storage/agents, not full Core/JSONL migration or live Host verification.
+- Browser tests are separate and mandatory for UI/release work. The official-sidebar fixture requires `DSH_CORE_PATH` and an allowlisted ref (CI/Release explicitly use 0.1.6-alpha.2); missing source is an explicit local skip, not its required CI acceptance. Its real Cron bundle/upstream models run in a **synthetic container**, not the full official renderer. Fixtures are not proof that the user's current GUI has been updated.
+- Set `DSH_CORE_PATH` to a clean source checkout at a supported exact commit for Core-source checks. Alternatively set `DSH_CORE_REF` as well to read immutable Git blobs at an allowlisted exact SHA without altering the checkout. Without `DSH_CORE_PATH`, tests explicitly skip source checks: report the skip, not a full compatibility pass. CI checks seven exact Core commits (0.1.2-rc.1, 0.1.3-alpha.1, 0.1.5-alpha.1/.2/rc.2 and 0.1.6-alpha.1/.2) on Windows/Linux and Node 22.19/24. Source-backed modern handle tests use fake storage/agents, not full Core/JSONL migration or live Host verification.
 - For optional integration-contract tests, set `DSH_BETTER_SIDEBAR_PATH` to the supported Better Sidebar source package and run `node tests/sidebar-contract.test.mjs`.
 - Review the diff, generated bundle, lockfile scope and secrets. Fix failing tests; do not remove assertions, weaken ownership, change registries, or disable TLS to obtain a green result.
 
