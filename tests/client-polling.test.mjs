@@ -44,8 +44,10 @@ async function fixture() {
   let behavior = () => 'ok'
   let hubOwners = []
   const task = owner => ({ id: `task-${owner}`, sessionId: owner, prompt: `Prompt ${owner}`, enabled: true, origin: 'dynamic', schedule: { everySeconds: 60 }, nextRunAt: null })
-  const response = (request, result) => ({ json: async () => ({ ok: true, result: result ?? (request.method === 'list' ? { tasks: [task(request.owner)] } : request.method === 'history' ? { records: [] } : request.method === 'owners' ? hubOwners : {}) }) })
+  const response = (request, result) => ({ ok: true, status: 200, json: async () => ({ ok: true, result: result ?? (request.method === 'list' ? { tasks: [task(request.owner)] } : request.method === 'history' ? { records: [] } : request.method === 'owners' ? hubOwners : {}) }) })
   globalThis.fetch = (url, options) => {
+    if (url === '/api/cron/capabilities' && options.method === 'GET') return Promise.resolve(Response.json({ ok: true, result: { transport: 'connection-fetch', version: 1 } }))
+    assert.match(url, /^\/api\/cron\//)
     const payload = JSON.parse(options.body)
     const request = { method: url.split('/').at(-1), owner: payload.sessionId, payload, signal: options.signal }
     if (request.method === 'owners') assert.deepEqual(payload, {}, 'global owner index sends no meaningful payload')
@@ -58,7 +60,7 @@ async function fixture() {
       if (mode === 'ok') request.resolve()
       else if (typeof mode === 'number') setTimeout(request.resolve, mode)
       else if (mode === 'error') reject(new Error('private prompt / credential must not enter watcher logs'))
-      else if (mode === 'body-hang') resolve({ json: () => new Promise(resolveBody => { request.resolveBody = result => resolveBody({ ok: true, result }) }) })
+      else if (mode === 'body-hang') resolve({ ok: true, status: 200, json: () => new Promise(resolveBody => { request.resolveBody = result => resolveBody({ ok: true, result }) }) })
       // "hang" deliberately ignores AbortSignal to also exercise stale-result guards.
     })
   }

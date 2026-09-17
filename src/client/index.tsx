@@ -1,6 +1,6 @@
 // Session-header entry + optional native Sidebar, then Better Sidebar, then a
 // pinned standalone fallback. One activity watcher; all panel data stays owner-scoped.
-// All business operations still use the existing POST /cron/api/<method> API.
+// Business POSTs use a read-only capability preflight; no mutation is replayed.
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -10,6 +10,7 @@ import { CRON_TAB_ID, createSidebarTab, supportsSidebar, type SidebarService, ty
 import { registerNativeSidebar, openNative, ownerTitle, createPanelConsumers, createRequestLease, type NativeController, type NativeBodyProps, type UseSessions } from './native-sidebar.js'
 import { createReadPoll, ReadTimeoutError } from './read-poll.js'
 import { registerScheduledSessionsHub } from './global-hub.js'
+import { cronTransport } from './transport.js'
 export { ownerLabel, SCHEDULED_SESSIONS_ID } from './global-hub.js'
 
 /** Services required from the client runtime. */
@@ -212,17 +213,7 @@ interface RunRecord {
   excerpt?: string
 }
 
-async function api<T>(method: string, payload?: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`/cron/api/${method}`, {
-    method: 'POST',
-    signal,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload ?? {}),
-  })
-  const data = await res.json().catch(() => null)
-  if (!data?.ok) throw new Error(data?.error?.message ?? `request failed (${res.status})`)
-  return data.result as T
-}
+const api = cronTransport.request
 
 type T = (key: string, params?: Record<string, unknown>) => string
 
@@ -978,6 +969,7 @@ function CronHeaderAction(props: SlotProps) {
 
 /** Client plugin body: dictionaries, styles, header trigger, and the drawer. */
 export function apply(ctx: any) {
+  ctx.effect(() => () => cronTransport.reset(), 'dsh-cron: transport discovery')
   ctx.effect(() => ctx.locale.register('cron', { zh, en }), 'dsh-cron: dictionaries')
   ctx.effect(() => {
     const tag = document.createElement('style')

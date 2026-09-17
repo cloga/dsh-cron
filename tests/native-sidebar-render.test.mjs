@@ -40,14 +40,16 @@ test('native shared body: owners, multi-pane visibility, pending actions and sta
   let resolveList, resolveAction, failList = false, empty = false
   let listBarrier, actionBarrier
   globalThis.fetch = async (url, options) => {
+    if (url === '/api/cron/capabilities' && options.method === 'GET') return Response.json({ ok: true, result: { transport: 'connection-fetch', version: 1 } })
+    assert.match(url, /^\/api\/cron\//)
     const method = url.split('/').at(-1), payload = JSON.parse(options.body)
     requests.push({ method, payload, signal: options.signal })
     if (method === 'list' && listBarrier) await listBarrier
     if (['run', 'toggle', 'remove'].includes(method) && actionBarrier) await actionBarrier
-    if (method === 'list' && failList) return { json: async () => ({ ok: false, error: { message: 'cron HTTP request requires a live root Session owner' } }) }
+    if (method === 'list' && failList) return { ok: false, status: 400, json: async () => ({ ok: false, error: { message: 'cron HTTP request requires a live root Session owner' } }) }
     const result = method === 'list' ? { tasks: empty ? [] : [{ id: `task-${payload.sessionId}`, sessionId: payload.sessionId, prompt: `Prompt ${payload.sessionId}`, enabled: true, origin: 'dynamic', schedule: { everySeconds: 60 }, nextRunAt: null }] }
       : method === 'history' ? { records: [] } : {}
-    return { json: async () => ({ ok: true, result }) }
+    return { ok: true, status: 200, json: async () => ({ ok: true, result }) }
   }
   const click = async button => { assert.ok(button); await act(async () => button.click()) }
   const button = (name, root = document) => [...root.querySelectorAll('button')].find(el => el.textContent === name || el.getAttribute('aria-label') === name)

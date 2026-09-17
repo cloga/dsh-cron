@@ -122,12 +122,17 @@ function makeCtx(storagePath, historyPath, configTasks, options = {}) {
     tools: { register: (def) => tools.set(def.name, def) },
   }
   if (options.http) {
-    ctx.inject = (_services, activate) => activate({
-      ...ctx,
-      webRuntime: { trustedHosts: [] },
-      effect: (fn) => { disposers.push(fn()) },
-      webServer: { register: (route) => { routes.push(route); return () => {} } },
-    })
+    // Legacy Core fixture: no Connection Fetch registry. Only declared,
+    // available services activate; never make every optional inject succeed.
+    ctx.inject = (services, activate) => {
+      if (!services.every(name => ['webServer', 'webRuntime'].includes(name))) return
+      activate({
+        ...ctx,
+        webRuntime: { trustedHosts: [] },
+        effect: (fn) => { disposers.push(fn()) },
+        webServer: { register: (route) => { routes.push(route); return () => {} } },
+      })
+    }
   }
   apply(ctx, Config({
     storagePath,
@@ -1225,7 +1230,7 @@ for (const shape of ['legacy-header', '0.1.3-snapshot', '0.1.5-snapshot']) {
   syncBuiltinESMExports()
   try {
     const coldRoute = cold.routes[0]
-    assert.equal(cold.disposers.length, 1, 'only the fake HTTP route effect runs, no scheduler timers')
+    assert.equal(cold.disposers.length, 2, 'only HTTP transport lifetime and route effects run, no scheduler timers')
     const ownerIndex = await callHttp(coldRoute, 'owners', {})
     assert.equal(ownerIndex.status, 200, 'a persisted unbound task does not hide valid owners')
     assert.deepEqual(ownerIndex.body.result.map(owner => owner.sessionId), [

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.2
+
+- Repair Electron Desktop management transport through the public `connection.fetch` exact-route registry at `/api/cron/*`, without requiring a Web listener or `webRuntime` (#47). The scheduler, task/history format, original Session ownership and existing supported Core ranges remain unchanged.
+- Share the owner-checked dispatcher between modern shared Fetch and legacy Web. Modern Web aliases use the Core Host/Origin/browser-auth fence and fail closed if that authentication capability is withdrawn; no fake Desktop loopback trust or second API interceptor is introduced.
+- Discover transport with a bounded, single-flight read-only GET. Only 404/405 selects legacy Web; authentication errors, network failures and invalid success payloads do not downgrade. Mutating requests are sent once and redirects are rejected rather than replaying a POST.
+- Preserve the 1MiB body limit with streaming POST routes, subscriber-aware metadata cancellation and disposal. Verify early rejection before an unfinished oversized upload is buffered, and reject inherited prototype method names.
+- Exercise actual legacy connection code and the exact 0.1.5-rc.2 Connection/Cordis/Cosmokit source through isolated transport tests, including no-resume/no-followup read assertions and a real Web bridge. Required CI receives the pinned source instead of silently skipping modern integration or depending on an installed Desktop.
+- This pre-1.0 compatibility patch fixes the promised Desktop use case while retaining older Web behavior. Package installation and catalog/read-only checks do not establish successful production automation, model authentication or business publication.
+
 ## 0.7.1
 
 - Add exact compatibility with upstream DSH `0.1.6-alpha.1` at commit `0a15e36e7f82b6ed45af6fa9759f29b40dcd965d` (#44; coordination cloga/dsh-windows-ops#161) while retaining every previously certified Core baseline. Peer policy remains exact for the new prerelease rather than widening to an unverified 0.1.6 range.

@@ -48,6 +48,7 @@ jobs:
     env:
       DSH_CORE_PATH: ${{ github.workspace }}/dsh-core
       DSH_CORE_REF: ${{ matrix.core.ref }}
+      DSH_TRANSPORT_CORE_PATH: ${{ github.workspace }}/dsh-transport-core
     steps:
       - uses: actions/checkout@v6
         with:
@@ -57,6 +58,12 @@ jobs:
           repository: deepseek-ai/deepseek-harness
           ref: ${{ matrix.core.ref }}
           path: dsh-core
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: fb2c4b9e698e30edb738bca4cf0618587db7d203
+          path: dsh-transport-core
           persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6

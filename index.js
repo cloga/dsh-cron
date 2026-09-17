@@ -409,27 +409,72 @@ function isTrustedApiRequest(req, trustedHosts) {
   return true
 }
 
-function readJsonBody(req) {
+async function readFetchJsonBody(request, signal) {
+  signal.throwIfAborted()
+  const reader = request.body?.getReader()
+  if (!reader) return {}
+  const chunks = []
+  let size = 0
+  const abort = () => { void reader.cancel().catch(() => {}) }
+  signal.addEventListener('abort', abort, { once: true })
+  try {
+    while (true) {
+      signal.throwIfAborted()
+      const { done, value } = await reader.read()
+      signal.throwIfAborted()
+      if (done) break
+      size += value.byteLength
+      if (size > 1024 * 1024) {
+        void reader.cancel().catch(() => {})
+        throw new Error('request body too large')
+      }
+      chunks.push(value)
+    }
+    try {
+      return size === 0 ? {} : JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    } catch {
+      throw new Error('invalid JSON body')
+    }
+  } finally {
+    signal.removeEventListener('abort', abort)
+    reader.releaseLock()
+  }
+}
+
+function readJsonBody(req, signal) {
   return new Promise((resolve, reject) => {
+    signal.throwIfAborted()
     const chunks = []
     let size = 0
-    req.on('data', (chunk) => {
+    const cleanup = () => {
+      req.removeListener('data', data)
+      req.removeListener('end', end)
+      req.removeListener('error', error)
+      signal.removeEventListener('abort', abort)
+    }
+    const error = (reason) => { cleanup(); reject(reason) }
+    const abort = () => error(signal.reason)
+    const data = (chunk) => {
       size += chunk.length
       if (size > 1024 * 1024) {
-        reject(new Error('request body too large'))
+        error(new Error('request body too large'))
         req.destroy()
         return
       }
       chunks.push(chunk)
-    })
-    req.on('end', () => {
+    }
+    const end = () => {
+      cleanup()
       try {
         resolve(chunks.length === 0 ? {} : JSON.parse(Buffer.concat(chunks).toString('utf8')))
       } catch {
         reject(new Error('invalid JSON body'))
       }
-    })
-    req.on('error', reject)
+    }
+    req.on('data', data)
+    req.on('end', end)
+    req.on('error', error)
+    signal.addEventListener('abort', abort, { once: true })
   })
 }
 
@@ -1489,14 +1534,10 @@ export function apply(ctx, config) {
     },
   }))
 
-  // --- HTTP API for the web client half -----------------------------------------
-  //
-  // Optional injection: profiles without the web stack (headless) never
-  // activate this block and keep full scheduling.
-
-  ctx.inject(['webServer', 'webRuntime'], (webCtx) => {
-    const fence = (req) => isTrustedApiRequest(req, webCtx.webRuntime.trustedHosts)
-
+  // --- Carrier-neutral API; metadata reads share only pending work -------------
+  // The dispatcher belongs to Cron, not either optional transport. Desktop uses
+  // Connection's public Fetch registry without starting a Web server/runtime.
+  {
     const httpOwner = (payload) => {
       const sessionId = requireSessionId(payload?.sessionId, 'cron HTTP request')
       const owner = ctx.agents.roots().find((agent) => String(agent.session?.id) === sessionId)
@@ -1562,63 +1603,126 @@ export function apply(ctx, config) {
       history: async (payload, signal) => ({ records: listHistory(payload?.limit, await httpReadOwner(payload, signal)) }),
     }
 
-    webCtx.effect(() => {
-      const unregister = webCtx.webServer.register({
-      kind: 'prefix',
-      path: '/cron/api',
-      handler: async (req, res) => {
-        const controller = new AbortController()
-        const abort = () => controller.abort()
-        req.once('aborted', abort)
-        res.once?.('close', abort)
-        try {
-          if (!fence(req)) {
-            writeJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
-            return
-          }
-          if (req.method !== 'POST') {
-            writeJson(res, 405, { ok: false, error: { code: 'method-error', message: 'method not allowed' } })
-            return
-          }
-          const pathname = new URL(req.url ?? '/', 'http://dsh.internal').pathname
-          const method = pathname.startsWith('/cron/api/') ? pathname.slice('/cron/api/'.length) : undefined
-          if (method === undefined || method.includes('/')) {
-            writeJson(res, 404, { ok: false, error: { code: 'not-found', message: 'unknown cron API method' } })
-            return
-          }
-          const payload = await readJsonBody(req)
-          controller.signal.throwIfAborted()
-          if (httpDisposed) throw new Error('cron HTTP service disposed')
-          const handler = api[method]
-          if (handler === undefined) {
-            writeJson(res, 404, { ok: false, error: { code: 'not-found', message: `unknown cron API method "${method}"` } })
-            return
-          }
-          const result = await handler(payload, controller.signal)
-          if (!controller.signal.aborted) writeJson(res, 200, { ok: true, result })
-        } catch (error) {
-          // Last line of defense: a rejected handler promise must never
-          // escape into the webserver as an unhandledRejection.
-          try {
-            if (controller.signal.aborted) return
-            if (!res.headersSent) writeJson(res, 400, { ok: false, error: { code: 'bad-request', message: error?.message ?? String(error) } })
-            else res.end()
-          } catch { /* socket already gone */ }
-        } finally {
-          req.removeListener('aborted', abort)
-          res.removeListener?.('close', abort)
-        }
-      },
-      })
-      return () => {
-        httpDisposed = true
-        for (const entry of ownerReads.values()) entry.controller.abort()
-        unregister()
-      }
-    }, 'dsh-cron: /cron/api routes')
+    ctx.effect(() => () => {
+      httpDisposed = true
+      for (const entry of ownerReads.values()) entry.controller.abort()
+    }, 'dsh-cron: API metadata lifetime')
 
-    logger.info('cron: HTTP API mounted at /cron/api')
-  })
+    const failure = (code, message) => ({ ok: false, error: { code, message } })
+    const dispatch = async (method, payload, signal) => {
+      signal.throwIfAborted()
+      if (httpDisposed) throw new Error('cron HTTP service disposed')
+      // Inherited names (constructor, toString, __proto__) are never methods.
+      if (!Object.hasOwn(api, method)) throw new Error('unknown cron API method')
+      const result = await api[method](payload, signal)
+      signal.throwIfAborted()
+      return { ok: true, result }
+    }
+    const transportLifetime = (inner) => {
+      const controller = new AbortController()
+      inner.effect(() => () => controller.abort(), 'dsh-cron: API transport lifetime')
+      return controller.signal
+    }
+
+    let requiresConnectionAuth = false
+    ctx.inject(['connection'], (inner) => {
+      const connection = inner.get('connection')
+      // Once an authenticated carrier has been observed, withdrawing Connection
+      // must not downgrade the surviving legacy alias to trust-only access.
+      if (typeof connection?.requestRejection === 'function' || typeof connection?.fetch?.register === 'function') requiresConnectionAuth = true
+      if (typeof connection?.fetch?.register !== 'function') return // legacy Core
+      const lifetime = transportLifetime(inner)
+      const register = (path, method, fetch) => connection.fetch.register({
+        path, methods: [method],
+        // Web must reach our 1 MiB reader before the carrier buffers the whole
+        // upload (its generic buffered cap is much larger). GET has no body.
+        requestBody: method === 'POST' ? 'streaming' : 'buffered', fetch,
+      })
+      register('/api/cron/capabilities', 'GET', async (request) => {
+        request.signal.throwIfAborted()
+        lifetime.throwIfAborted()
+        return Response.json({ ok: true, result: { transport: 'connection-fetch', version: 1 } }, {
+          headers: { 'cache-control': 'no-store' },
+        })
+      })
+      for (const method of Object.keys(api)) {
+        register(`/api/cron/${method}`, 'POST', async (request) => {
+          const controller = new AbortController()
+          const abort = () => controller.abort()
+          request.signal.addEventListener('abort', abort, { once: true })
+          lifetime.addEventListener('abort', abort, { once: true })
+          if (request.signal.aborted || lifetime.aborted) abort()
+          try {
+            const payload = await readFetchJsonBody(request, controller.signal)
+            return Response.json(await dispatch(method, payload, controller.signal))
+          } catch (error) {
+            return Response.json(failure('bad-request', controller.signal.aborted
+              ? 'request cancelled' : error?.message ?? String(error)), { status: 400 })
+          } finally {
+            request.signal.removeEventListener('abort', abort)
+            lifetime.removeEventListener('abort', abort)
+          }
+        })
+      }
+      logger.info('cron: shared Fetch API mounted at /api/cron')
+    })
+
+    // Keep the old Web URL for old Core/clients. Modern Web aliases must pass
+    // Connection's current authentication fence, not Cron's legacy trust-only fence.
+    ctx.inject(['webServer', 'webRuntime'], (webCtx) => {
+      const lifetime = transportLifetime(webCtx)
+      webCtx.effect(() => webCtx.webServer.register({
+        kind: 'prefix',
+        path: '/cron/api',
+        handler: async (req, res) => {
+          const controller = new AbortController()
+          const abort = () => controller.abort()
+          let disconnected = false
+          const disconnect = () => { disconnected = true; abort() }
+          req.once('aborted', disconnect)
+          res.once?.('close', disconnect)
+          lifetime.addEventListener('abort', abort, { once: true })
+          if (lifetime.aborted) abort()
+          try {
+            const connection = webCtx.get('connection')
+            const rejection = typeof connection?.requestRejection === 'function'
+              ? connection.requestRejection(req)
+              : requiresConnectionAuth || typeof connection?.fetch?.register === 'function'
+                ? 403 // a modern registry without its authentication fence fails closed
+                : isTrustedApiRequest(req, webCtx.webRuntime.trustedHosts) ? undefined : 403
+            if (rejection !== undefined) {
+              writeJson(res, rejection, failure(rejection === 401 ? 'unauthorized' : 'forbidden', rejection === 401 ? 'unauthorized' : 'forbidden'))
+              return
+            }
+            if (req.method !== 'POST') {
+              writeJson(res, 405, failure('method-error', 'method not allowed'))
+              return
+            }
+            const pathname = new URL(req.url ?? '/', 'http://dsh.internal').pathname
+            const method = pathname.startsWith('/cron/api/') ? pathname.slice('/cron/api/'.length) : ''
+            if (!Object.hasOwn(api, method)) {
+              writeJson(res, 404, failure('not-found', 'unknown cron API method'))
+              return
+            }
+            const payload = await readJsonBody(req, controller.signal)
+            const result = await dispatch(method, payload, controller.signal)
+            if (!controller.signal.aborted) writeJson(res, 200, result)
+          } catch (error) {
+            try {
+              if (disconnected) return
+              if (!res.headersSent) writeJson(res, 400, failure('bad-request', controller.signal.aborted ? 'request cancelled' : error?.message ?? String(error)))
+              else res.end()
+            } catch { /* socket already gone */ }
+          } finally {
+            req.removeListener('aborted', disconnect)
+            res.removeListener?.('close', disconnect)
+            lifetime.removeEventListener('abort', abort)
+          }
+        },
+      }), 'dsh-cron: /cron/api routes')
+      logger.info('cron: HTTP API mounted at /cron/api')
+    })
+  }
 
   logger.info(`cron: loaded ${tasks.size} task(s), storage at ${storagePath}`)
 }

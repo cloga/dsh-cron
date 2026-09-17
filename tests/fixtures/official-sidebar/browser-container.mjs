@@ -46,7 +46,8 @@ export function mountContainer() {
     return { ok: true, result: method === 'list' ? { tasks } : method === 'history' ? { records } : {} }
   }
   window.fetch = async (url, options) => {
-    if (!/^\/cron\/api\/(list|history|remove|toggle|update|run)$/.test(String(url))) throw new Error('Real API/network forbidden: ' + url)
+    if (url === '/api/cron/capabilities' && options.method === 'GET') return Response.json({ ok: true, result: { transport: 'connection-fetch', version: 1 } })
+    if (!/^\/api\/cron\/(list|history|remove|toggle|update|run)$/.test(String(url))) throw new Error('Real API/network forbidden: ' + url)
     const method = String(url).split('/').at(-1), payload = JSON.parse(options.body)
     if (!['fixture-owner-A', 'fixture-owner-B'].includes(payload.sessionId)) throw new Error('Non-fixture owner')
     const request = { method, owner: payload.sessionId, id: payload.id, signal: options.signal, aborted: options.signal?.aborted ?? false }
@@ -57,11 +58,11 @@ export function mountContainer() {
       // Deliberately ignore abort at the fake carrier: Cron must reject stale success.
       return new Promise(resolve => held.push({ request, resolve: () => {
         if (method === 'remove') removed.add(payload.sessionId + '/' + payload.id)
-        resolve({ json: async () => requestData(payload.sessionId, method) })
+        resolve({ ok: true, status: 200, json: async () => requestData(payload.sessionId, method) })
       } }))
     }
     if (method === 'remove') removed.add(payload.sessionId + '/' + payload.id)
-    return { json: async () => mode === 'error' ? { ok: false, error: { message: 'Synthetic carrier unavailable' } } : requestData(payload.sessionId, method) }
+    return { ok: mode !== 'error', status: mode === 'error' ? 400 : 200, json: async () => mode === 'error' ? { ok: false, error: { message: 'Synthetic carrier unavailable' } } : requestData(payload.sessionId, method) }
   }
   const slotsFace = {
     inject: (_name, callback) => callback(),

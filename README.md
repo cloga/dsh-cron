@@ -70,30 +70,32 @@
 
 ### 1. 安装固定版本
 
-在常驻的 **Web / Desktop Web Profile** 中安装：
+在常驻的 **Web / 旧 Tauri Desktop 的 `web` Profile** 中安装：
 
 ```sh
-dsh plugin --profile web add github:cloga/dsh-cron#v0.7.1
+dsh plugin --profile web add github:cloga/dsh-cron#v0.7.2
 ```
 
 已安装旧版时使用同一条 `add` 命令升级，**无需先卸载**。不带 tag 的 GitHub 安装会跟随移动的默认分支，不作为发布验证依据。
 
-也可以从 [v0.7.1 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.7.1) 下载 `dsh-cron-0.7.1.tgz` 与 `SHA256SUMS`，校验后安装本地包：
+也可以从 [v0.7.2 Release](https://github.com/cloga/dsh-cron/releases/tag/v0.7.2) 下载 `dsh-cron-0.7.2.tgz` 与 `SHA256SUMS`，校验后安装本地包：
 
 ```sh
-dsh plugin --profile web add ./dsh-cron-0.7.1.tgz
+dsh plugin --profile web add ./dsh-cron-0.7.2.tgz
 ```
+
+**新 Electron Desktop 的 `desktop` Profile 由应用独占管理，不能照搬以上 CLI 命令。** 请使用该 Desktop 版本提供的原生插件管理入口安装固定版本或已校验的本地包，并先确认其安装、用户插件保留及重启行为。Cron 0.7.2 使用公共 `/api/cron/*` shared Fetch 路由，不要求 Desktop 开启 Web 监听器或 `webRuntime`；Desktop 自身的旧锁文件与重启移除插件问题仍需由 Desktop 更新修复。不要同时让新旧两套 Host 调度同一份任务存储。
 
 `lib/client.js` 已随包提交，**无 `prepare` / `postinstall` 等安装脚本**，不需要为本插件授权安装期构建。
 
 <details>
-<summary>Windows Desktop：如果 dsh 快捷命令指向了损坏的旧安装</summary>
+<summary>旧 Tauri Desktop：如果 dsh 快捷命令指向了损坏的旧安装</summary>
 
-在使用默认安装目录的 Desktop 环境，可以用 PowerShell 直接调用其自带 CLI，绕过失效的 PATH shim；若安装路径不同，请先确认实际路径，不要盲目重装或改全局 PATH。
+仅在使用默认安装目录的旧 Tauri Desktop 环境，可以用 PowerShell 直接调用其自带 CLI，绕过失效的 PATH shim；若安装路径不同，请先确认实际路径，不要盲目重装或改全局 PATH。此命令不适用于新 Electron Desktop。
 
 ```powershell
 $cli = "$env:APPDATA\io.github.hairyf.deepseek-harness-desktop\dependencies\dsh\node_modules\@deepseek-ai\dsh\lib\bin.js"
-node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.1'
+node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.2'
 ```
 
 </details>
@@ -106,13 +108,19 @@ node $cli plugin --profile web add 'github:cloga/dsh-cron#v0.7.1'
 pnpm --dir "$HOME/.dsh/profiles/web" list dsh-cron --depth 0
 ```
 
-应显示 `dsh-cron@0.7.1`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。
+应显示 `dsh-cron@0.7.2`。若设置了自定义 `DSH_HOME`，请替换为其实际 Profile 目录。Electron Desktop 则读取其 `desktop` Profile 的已安装清单，不调用 Web CLI 修改该目录。
 
 ### 3. 在安全时机激活
 
 等运行中的 Session 结束后，重启对应的 DSH Host / Desktop，再硬刷新页面（Ctrl/Cmd+Shift+R）。**不要为插件升级打断正在执行的会话。**
 
 安装、当前进程加载和页面生效是不同状态：仅更新仓库或安装文件，不意味着已经运行新 Client bundle。
+
+### 4. 验证原 Session 自动任务
+
+先核对任务、历史、原 owner、时间规则、时区和实际启停状态，再检查重启后的面板读取。`owners/list/history` 不恢复 Agent、不触发任务；读取成功也不证明模型认证、冷会话恢复或业务执行成功。发布、部署等任务应按获准计划核验实际终态和业务结果，不要为了检查安装而直接点击“立即运行”。
+
+0.7.2 先以只读 GET 探测 `/api/cron/capabilities`，使用现代 Web 与 Electron 共用的 `/api/cron/*`；只有探测返回 404/405 时才选择旧 Web `/cron/api/*`。401/403、网络错误和无效成功响应不会降级绕过认证。探测有单飞、取消与截止保护，不缓存已完成的路由选择；修改请求只发送一次且不跟随重定向。
 
 ## 使用方式
 
@@ -199,7 +207,7 @@ Agent 会通过工具创建任务。到点后提示词注入**创建任务的会
 - **真实执行与费用**：触发的是原 Session 的模型调用，使用该会话的模型配置和可用工具权限。不要给无人值守任务超出预期的发布、删除或 Shell 权限。
 - **所有权隔离**：工具和 HTTP 操作都按 Session 校验；冷恢复只针对原 root Session，拒绝恢复子代理所有的 Session，不会退到其他会话。
 - **本地数据**：默认保存 `$DSH_HOME/cron-tasks.json` 与 `$DSH_HOME/cron-history.jsonl`，路径可配置；测试不应使用真实任务和凭据。
-- **HTTP 边界**：`/cron/api/*` 做 loopback/trusted-host、同源及 owner 校验，但不是面向恶意本机进程的身份认证协议。
+- **HTTP 边界**：现代 `/api/cron/*` 使用 Core shared Fetch 载体；Web 在分发前检查 Host、Origin、跨站信息及浏览器认证，Desktop 使用自己的私有载体。旧 Web `/cron/api/*` 保留旧运行时的本机/受信主机检查；若已有现代 connection，则别名同样执行其认证检查。所有业务入口仍验证 root owner，但不构成面向恶意本机进程的独立身份认证协议。
 - **常驻要求**：Host 必须保持运行。`coldWake` 恢复的是被卸载的会话，不是唤醒关机或休眠的电脑。
 
 <details>
@@ -234,9 +242,11 @@ Core 0.1.3 使用 snapshot header 与可关闭的 read handle，`read()` 返回�
 
 代理和维护者先读 [`AGENTS.md`](AGENTS.md)。[架构与验证地图](docs/agentic-readiness.md)解释入口、会话不变量、测试层级和故障恢复；[发布手册](RELEASE.md)规定交付责任。
 
+完整测试还需把 `DSH_TRANSPORT_CORE_PATH` 指向包含精确 `fb2c4b9e698e30edb738bca4cf0618587db7d203` 对象的现有 Core Git 仓库；若未设置，则使用 `DSH_CORE_PATH`。传输夹具只读该提交的 Connection/Cordis/Cosmokit 源码，不构建整个 Core、不启动 Host、不读取凭据；缺少源码会失败而非跳过。CI 为该检查提供独立的固定源码 checkout。
+
 ```sh
 pnpm install --frozen-lockfile
-pnpm verify                       # 类型、构建、Host/Client、发布策略及打包检查
+pnpm verify                       # 类型、构建、Host/Client、实际传输源码、发布与打包检查
 pnpm exec playwright install chromium
 pnpm test:sidebar                 # 浏览器回归；独立 fixture，不修改真实 GUI
 pnpm test:release                 # 离线发布策略、重试和工作流连接测试

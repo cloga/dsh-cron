@@ -80,6 +80,8 @@ let completeRun = false
 let extraCompleted = 0
 const task = owner => ({ id: 'task-' + owner, prompt: 'prompt-' + owner, enabled: true, origin: 'dynamic', sessionId: owner, schedule: { everySeconds: 60 }, lastRunAt: null, nextRunAt: null })
 globalThis.fetch = async (url, options) => {
+  if (url === '/api/cron/capabilities' && options.method === 'GET') return new Response('', { status: 404 })
+  assert.match(url, /^\/cron\/api\//)
   const payload = JSON.parse(options.body)
   requests.push({ method: url.split('/').at(-1), payload })
   const owner = payload.sessionId
@@ -88,7 +90,7 @@ globalThis.fetch = async (url, options) => {
   if (url.endsWith('/run') && pendingAction) await pendingAction
   const result = url.endsWith('/list') ? { tasks: [task(owner)] }
     : url.endsWith('/history') ? { records: [{ id: 'run-' + owner, taskId: 'task-' + owner, sessionId: owner, prompt: '', scheduledFor: '', firedAt: '', status: completeRun ? 'completed' : 'delivered', excerpt: 'result-' + owner }, ...Array.from({ length: extraCompleted }, (_, i) => ({ id: `extra-${owner}-${i}`, taskId: 'task-' + owner, sessionId: owner, prompt: '', scheduledFor: '', firedAt: '', status: 'completed', excerpt: 'extra result' }))] } : {}
-  return { json: async () => ({ ok: true, result }) }
+  return { ok: true, status: 200, json: async () => ({ ok: true, result }) }
 }
 const render = async (owner = 'A') => act(async () => {
   root.render(react.createElement(react.Fragment, null,

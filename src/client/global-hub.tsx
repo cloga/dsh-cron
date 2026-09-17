@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createReadPoll, ReadTimeoutError } from './read-poll.js'
+import { cronTransport } from './transport.js'
 
 export const SCHEDULED_SESSIONS_ID = 'dsh-cron:scheduled-sessions'
 const HUB_POLL_MS = 20_000
@@ -35,17 +36,9 @@ interface HubIconProps { size: number; active: boolean }
 interface UiWorkspace { openSession: (sessionId: string) => void }
 
 async function readOwners(signal: AbortSignal): Promise<OwnerSummary[]> {
-  const response = await fetch('/cron/api/owners', {
-    method: 'POST',
-    signal,
-    headers: { 'content-type': 'application/json' },
-    body: '{}',
-  })
-  const payload = await response.json().catch(() => null)
-  if (!payload?.ok || !Array.isArray(payload.result)) {
-    throw new Error(payload?.error?.message ?? `request failed (${response.status})`)
-  }
-  return payload.result
+  const owners = await cronTransport.request<OwnerSummary[]>('owners', {}, signal)
+  if (!Array.isArray(owners)) throw new Error('invalid cron owners response')
+  return owners
 }
 
 export function ownerLabel(sessionId: string, session: SessionProjection | undefined, blank: string): string {

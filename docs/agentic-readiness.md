@@ -36,6 +36,10 @@ Metadata-only HTTP reads prefer public `stat(id, { signal })`, falling back to `
 
 Version 0.7.1 is a pre-1.0 compatibility patch over 0.7.0: it adds only the exact 0.1.6-alpha.1 baseline and removes Cron's deprecated live Session history read while retaining the global owner hub, scheduling, tool/HTTP ownership, history format and Client behavior. The 0.1.6 audit confirms Cron does not touch Sandbox, Shell, workflow/PTC, config HMR, attachment cache or Team APIs. Versioned changelog/install examples and a committed PR candidate are required for delivery. Recheck the base version before merging; do not report the committed-HEAD release gate as verification of an uncommitted worktree, or a release as proof of live installation.
 
+Version 0.7.2 repairs Desktop transport without changing scheduler or owner policy. `connection.fetch` registers exact `/api/cron/*` routes for modern Web and Electron. POST bodies stream through the Core bridge so Cron rejects an unfinished upload above 1MiB before whole-body buffering. The legacy Web alias shares the dispatcher and uses modern carrier authentication when available; withdrawing that capability cannot downgrade authentication. Client transport discovery is a bounded read-only GET, never a retry of a mutation, and retains no completed route selection across operations.
+
+`tests/transport.test.mjs` is part of the standard test chain. Its modern fixture executes the real Connection, Cordis, Cosmokit and Web bridge from 22 allowlisted Git blobs at `fb2c4b9e698e30edb738bca4cf0618587db7d203`, with only `node:stream` and the pinned test dependency Zod outside that closure. Set `DSH_TRANSPORT_CORE_PATH` to a repository containing that exact commit, or use `DSH_CORE_PATH` with the same object available. Missing source is a failure, not a skip. CI uses a separate fixed checkout so older compatibility-matrix refs cannot hide the modern route test; release verification reuses its exact rc.2 checkout. No installed Desktop module, real credentials, Agent, model call or production task file is required.
+
 ## Fast paths for a new agent
 
 | Change | Read first | Minimum focused evidence |
