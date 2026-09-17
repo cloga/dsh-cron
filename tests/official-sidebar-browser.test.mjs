@@ -132,11 +132,18 @@ try {
   await confirm.click()
   await expect(confirm).toBeDisabled()
   await expect(panel.locator('.dsh-cron-actions[aria-busy="true"]')).toHaveCount(1)
+  // Busy starts before the read-only transport probe finishes. Observe the
+  // actual POST, not UI state, before inspecting/resolving the held mutation.
+  await expect.poll(async () => page.evaluate(() =>
+    window.fixture.state().requests.filter(request => request.method === 'remove').length,
+  )).toBe(1)
   let state = await page.evaluate(() => window.fixture.state())
   assert.equal(state.requests.filter(request => request.method === 'remove').length, 1)
   await screenshot('desktop-light-delete-pending')
   await page.evaluate(owner => { window.fixture.mode(owner, 'populated'); window.fixture.resolveHeld() }, A)
   await expect(panel.getByText('Synthetic A task 0', { exact: true })).toHaveCount(0)
+  state = await page.evaluate(() => window.fixture.state())
+  assert.equal(state.requests.filter(request => request.method === 'remove').length, 1, 'completion must not replay the mutation')
   report.passed.push('delete confirmation, pending disabled controls, one fixture-only mutation')
 
   // Hold old A fetches across owner switch. Carrier intentionally ignores abort.
