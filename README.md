@@ -1,5 +1,36 @@
 # dsh-cron
 
+> [!IMPORTANT]
+> **维护状态：暂停维护与功能演进（official Schedule first）。** 新部署请优先使用 DeepSeek Harness
+> [`dsh-v0.2.0-rc.1`](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.1)
+> 提供的可选 experimental Schedule bundle。`dsh-cron` 仅在迁移被官方能力缺口阻断或发生严重回归时，
+> 作为现有部署的临时回退参考；目前不计划主动增加功能。
+>
+> 官方 Schedule 已覆盖大多数常规任务，但并非完全等价：它支持一次性任务、至少 60 秒的固定间隔、
+> daily、weekly、标准五段 cron、IANA 时区、冷会话恢复、跨重启持久化和全局任务管理；尚不提供本插件的
+> 暂停/恢复、立即运行、10–59 秒间隔、模型最终执行状态/摘要、自动退避重试和 owner 转移能力。
+> 现有任务不会自动迁移；迁移时请勿双调度同一任务，并逐项实际触发验证。官方能力与限制以
+> [固定版本 Schedule 文档](https://github.com/deepseek-ai/deepseek-harness/blob/4878cdabd87d4041bdaff61d04c966883b9fd07a/packages/schedule/schedule/README.zh.md)
+> 为准。该 Schedule 仅是 `dsh-v0.2.0-rc.1` 中的可选 experimental bundle，并非稳定的 “DSH Desktop 0.2.0”；
+> 本插件 `0.7.x` 也未声明兼容该 Harness 版本，请勿假定可以混装。
+>
+> **Maintenance status: maintenance and feature development are paused (official Schedule first).**
+> New deployments should prefer the optional experimental Schedule bundle in DeepSeek Harness
+> [`dsh-v0.2.0-rc.1` (Release)](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.0-rc.1),
+> not assume a stable DSH Desktop 0.2.0 feature. The bundle covers most routine schedules: one-shot `at`,
+> fixed intervals of at least 60 seconds, daily, weekly, five-field cron, IANA time zones, cold-Session
+> restoration, persistence across restarts, and global task management. It does not yet match this plugin's
+> pause/resume, run-now, 10–59 second intervals, final model-execution status/summaries, automatic retry
+> backoff, or owner transfer.
+>
+> Existing tasks are not migrated automatically. Keep `dsh-cron` only as a temporary fallback when an
+> official capability gap blocks migration or a severe regression occurs; the plugin's `0.7.x` releases
+> do not declare compatibility with DSH `0.2.0-rc.1`, so do not assume they can be mixed. Do not
+> dual-schedule a task, and verify each migrated task with a real trigger. See the
+> [Schedule documentation at the exact release commit](https://github.com/deepseek-ai/deepseek-harness/blob/4878cdabd87d4041bdaff61d04c966883b9fd07a/packages/schedule/schedule/README.md)
+> and the [experimental bundle README](https://github.com/deepseek-ai/deepseek-harness/blob/4878cdabd87d4041bdaff61d04c966883b9fd07a/packages/experimental/schedule-bundle/README.md)
+> for the official scope and setup.
+
 **让 DSH 按时回到创建任务的会话，继续替你工作。**
 
 用自然语言创建定时任务，在 **DSH 官方 Sidebar 的当前会话标签**中管理任务和执行记录，边聊天边查看进展。支持公开能力的新 Core 还会提供全局「定时会话」导航，只显示 owner 级计数和最早下次运行时间，点击后回到对应对话；能力不可用时保留旧版兼容行为。到点仍使用原会话的模型配置执行，结果仍回到原会话。
